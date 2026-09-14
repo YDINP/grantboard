@@ -47,10 +47,15 @@ Layer(`src/content.config.ts`)의 zod 스키마로, `team-profile.json`은 단�
 - 날짜 계산은 전부 `src/lib/schedule.ts`의 KST 헬퍼를 재사용합니다. **타임존 처리를 다른 파일에
   새로 만들지 마세요.**
 
-## 자동 수집 (K-Startup)
+## 자동 수집 (K-Startup + 기업마당)
 
-`data/programs.json`의 `source: 'k-startup'` 항목은 GitHub Actions가 매일 공공데이터포털의
-K-Startup Open API를 호출해 자동으로 채웁니다(`.github/workflows/collect.yml`).
+`data/programs.json`의 `source: 'k-startup'` / `source: 'bizinfo'` 항목은 GitHub Actions가 매일
+공공데이터포털의 K-Startup Open API와 기업마당(bizinfo.go.kr) Open API를 호출해 자동으로
+채웁니다(`.github/workflows/collect.yml`).
+
+기업마당은 K-Startup에 없는 지자체·타부처 공고를 보강하는 **2차 소스**입니다.
+`BIZINFO_CRTFC_KEY`가 설정되지 않은 레포에서는 기업마당 수집만 건너뛰고 K-Startup 수집은
+정상 진행합니다 — 워크플로가 실패하지 않습니다.
 **`source: 'manual'` 항목은 자동수집이 절대 덮어쓰거나 삭제하지 않습니다.**
 
 - `src/lib/collect.ts` — 순수 함수(`normalizeAnnouncement`, `mergePrograms`). 네트워크 접근 없음.
@@ -83,6 +88,21 @@ K-Startup Open API를 호출해 자동으로 채웁니다(`.github/workflows/col
 매칭이 일어나면 `scripts/collect.mjs` 실행 로그에 어떤 자동수집 제목이 어떤 manual 행의
 별칭으로 처리됐는지 남습니다.
 
+### 두 소스에서 같은 공고가 올 때 (중복 제거)
+
+K-Startup과 기업마당이 같은 공고를 조금 다른 표기로 줄 수 있습니다. 병합은 4단계로 시도합니다.
+
+1. 공고명 + 마감일이 완전히 같으면 1건으로 합칩니다.
+2. manual 행의 `aliasTitles`와 일치하면 그 manual 행으로 매칭됩니다.
+3. 공고명이 정확히 같은 자동수집 항목이 **정확히 1건**이면 마감일이 바뀐 것으로 보고 갱신합니다.
+4. 위 셋 다 아니면, 제목에서 **선행 연도(`"2026년 "`)와 괄호 안이 순수 연도인 표기(`"(2026)"`)만**
+   제거한 정규화 제목으로 다시 비교해, 일치하는 자동수집 항목이 정확히 1건이면 갱신합니다.
+
+이 정규화는 **의도적으로 보수적**입니다. 지역·회차 등 괄호 안 내용은 지우지 않으므로
+`"OO사업(서울)"`과 `"OO사업(경기)"`는 별개 공고로 남습니다. 정규화 후에도 후보가 2건 이상이면
+(모호하면) 병합하지 않고 신규로 추가합니다 — **다른 공고를 잘못 합쳐 한쪽 마감일이 사라지는
+것보다, 중복이 남는 쪽이 안전하기 때문입니다.**
+
 ### 서비스키 발급
 
 1. [data.go.kr](https://www.data.go.kr)에 로그인 → 데이터셋 **"K-Startup 사업공고정보"(15125364)**
@@ -90,16 +110,25 @@ K-Startup Open API를 호출해 자동으로 채웁니다(`.github/workflows/col
 2. 승인 후 마이페이지 > 오픈API > 활용신청 현황에서 **서비스키(디코딩 인증키)** 확인.
 3. ⚠️ **이 키를 코드, 커밋, 이슈, PR에 절대 넣지 마세요.** 이 레포는 public입니다.
 
+기업마당(2차 소스)은 [bizinfo.go.kr](https://www.bizinfo.go.kr/apiList.do) 회원가입 후
+지원사업정보 API 크리덴셜(`crtfcKey`)을 발급받습니다.
+⚠️ 기업마당의 정확한 발급 절차·응답 필드 키명·일일 호출 한도는 아직 실호출로 확인하지
+못했습니다. `src/lib/collect.ts`와 `scripts/collect.mjs`의 `⚠️ 미확인` 주석을 참고해 키 발급
+후 검증하고 고치세요.
+
 ### GitHub Secrets 등록
 
 레포 **Settings → Secrets and variables → Actions → New repository secret**에서
-이름 `DATA_GO_KR_KEY`, 값에 발급받은 서비스키를 등록하세요. 워크플로우는 이 시크릿만 읽고,
-로그에 키가 찍히지 않도록 마스킹합니다.
+이름 `DATA_GO_KR_KEY`(K-Startup), `BIZINFO_CRTFC_KEY`(기업마당)로 각각 등록하세요.
+워크플로우는 이 시크릿만 읽고, 로그에 키가 찍히지 않도록 마스킹합니다.
+`BIZINFO_CRTFC_KEY`는 없어도 됩니다 — 그 경우 기업마당만 건너뜁니다.
 
 ### 로컬에서 dry-run
 
 ```bash
-DATA_GO_KR_KEY=발급받은키 node scripts/collect.mjs --dry-run
+DATA_GO_KR_KEY=키 node scripts/collect.mjs --dry-run          # 전체(기본 --source=all)
+DATA_GO_KR_KEY=키 BIZINFO_CRTFC_KEY=키 node scripts/collect.mjs
+node scripts/collect.mjs --source=kstartup                    # kstartup | bizinfo | all
 ```
 
 `--dry-run`은 API를 호출하고 결과를 요약만 출력할 뿐 `data/programs.json`을 쓰지 않습니다.
@@ -111,6 +140,60 @@ node scripts/collect.mjs --dry-run
 ```
 
 실제로 파일을 갱신하려면 `--dry-run`을 빼고 실행하세요.
+
+## 알림 (매일 아침 D-day 다이제스트)
+
+정적 사이트라 서버가 없으므로, `.github/workflows/notify.yml`이 매일 **KST 08:30**(수집 직후·
+배포 직전)에 팀 채널(Slack 또는 Discord)로 오늘 신경 써야 할 항목을 요약해 보냅니다.
+
+- `src/lib/digest.ts` — 메시지를 조립하는 순수 함수(`buildDigest`). 네트워크 접근 없음.
+  날짜·마감상태·서류만료 판정은 전부 `src/lib/board.ts`(`buildBoard`)에 위임합니다 —
+  `schedule.ts`의 KST 로직을 다시 짜지 않습니다.
+- `scripts/notify.mjs` — 실제 웹훅 전송. 네트워크 코드는 여기에만 있습니다.
+
+포함되는 항목: 오늘/3일 이내 마감 공고, 내부 마감(`targetSubmitDate`)을 넘긴 미제출 지원건,
+진행 중인 지원건에 물려 있는 만료/만료 임박(14일 이내) 서류, 발표 예정일이 지났는데 아직
+결과가 안 나온 지원건. **넷 다 해당 사항이 없으면 아무 메시지도 보내지 않습니다** — 매일 "급한
+거 없음"이 오면 알림을 꺼버리게 되기 때문입니다.
+
+### Slack/Discord 웹훅 만들기
+
+- **Slack**: 워크스페이스의 [Incoming Webhooks](https://api.slack.com/messaging/webhooks) 앱을
+  채널에 추가하면 `https://hooks.slack.com/services/...` 형태의 URL을 받습니다.
+- **Discord**: 채널 설정 → 연동 → 웹훅 → 새 웹훅 만들기에서
+  `https://discord.com/api/webhooks/...` 형태의 URL을 받습니다.
+
+둘 중 하나만 설정해도 동작하고, 둘 다 설정하면 둘 다에 보냅니다.
+
+### GitHub Secrets 등록
+
+```bash
+gh secret set SLACK_WEBHOOK_URL
+gh secret set DISCORD_WEBHOOK_URL
+```
+
+(각각 프롬프트에 웹훅 URL을 붙여넣으세요. 필요한 쪽만 등록하면 됩니다.)
+
+> ⚠️ **웹훅 URL을 코드·커밋·이슈·PR·Actions 로그에 절대 직접 넣지 마세요.** 이 레포는
+> public입니다. `notify.yml`은 시크릿만 읽고 `::add-mask::`로 로그 마스킹을 걸며,
+> `scripts/notify.mjs`도 실패 응답을 로그로 남길 때 URL을 치환해 지웁니다 — 하지만 이건 이중
+> 안전장치일 뿐, URL 자체를 다른 곳에 붙여넣지 않는 게 우선입니다. 웹훅이 새 나갔다면 Slack
+> Incoming Webhook 앱 설정에서 즉시 재생성하거나(Discord는 웹훅 삭제 후 재생성) 시크릿을
+> 교체하세요.
+
+시크릿이 둘 다 설정되지 않은 상태에서는 `notify.yml`이 조용히 스킵합니다(로그에 경고만
+남김) — 아직 설정 전이라고 매일 실패 알림이 오지는 않습니다.
+
+### 로컬에서 확인하기
+
+```bash
+node scripts/notify.mjs --dry-run
+```
+
+API 키나 웹훅 없이 오늘 조립될 메시지 전문을 그대로 stdout에서 볼 수 있습니다(보낼 항목이
+없으면 "보낼 다이제스트가 없다"는 로그만 남기고 아무것도 출력하지 않습니다). `--dry-run` 없이
+실행하면 실제로 전송하며, 웹훅 환경변수가 둘 다 없으면 조용히 성공한 척하지 않고 에러로
+종료합니다.
 
 ## 로컬 실행
 

@@ -1,4 +1,4 @@
-name: Collect K-Startup Announcements
+name: Collect Announcements (K-Startup + 기업마당)
 
 on:
   schedule:
@@ -32,10 +32,19 @@ jobs:
       - name: Run collector
         env:
           DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+          # BIZINFO_CRTFC_KEY(기업마당 서비스키)는 선택 사항이다 — 레포에 시크릿이
+          # 설정되지 않으면 빈 문자열이 되고, scripts/collect.mjs가 기업마당 수집만
+          # 건너뛰고 K-Startup은 정상 진행한다(워크플로를 실패시키지 않는다).
+          BIZINFO_CRTFC_KEY: ${{ secrets.BIZINFO_CRTFC_KEY }}
         # ::add-mask::로 서비스키를 로그 마스킹 대상에 명시적으로 등록한다.
         # (수집 스크립트 자체도 URL 로그에 키를 남기지 않지만, 이중 안전장치)
+        # BIZINFO_CRTFC_KEY가 비어 있을 때 add-mask에 빈 문자열을 등록하면 GitHub Actions가
+        # 경고를 남기므로, 값이 있을 때만 마스킹 대상으로 등록한다.
         run: |
           echo "::add-mask::$DATA_GO_KR_KEY"
+          if [ -n "$BIZINFO_CRTFC_KEY" ]; then
+            echo "::add-mask::$BIZINFO_CRTFC_KEY"
+          fi
           node scripts/collect.mjs
 
       - name: Check for changes
@@ -61,7 +70,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/programs.json
-          git commit -m "chore(data): K-Startup 공고 자동수집 갱신 ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          git commit -m "chore(data): 공고 자동수집 갱신 (K-Startup/기업마당) ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
 
           attempt=1
           max_attempts=5

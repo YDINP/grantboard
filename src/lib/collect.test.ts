@@ -8,6 +8,11 @@ const fixture = JSON.parse(
 ) as { response: { body: { items: { item: unknown[] } } } };
 const fixtureItems = fixture.response.body.items.item;
 
+const bizinfoFixture = JSON.parse(
+  readFileSync(new URL('./__fixtures__/bizinfo-sample.json', import.meta.url), 'utf-8'),
+) as { jsonArray: unknown[] };
+const bizinfoItems = bizinfoFixture.jsonArray;
+
 function manualProgram(overrides: Partial<ProgramRecord> = {}): ProgramRecord {
   return {
     id: 'pre-startup-2026',
@@ -95,6 +100,59 @@ describe('normalizeAnnouncement', () => {
     assert.equal(normalizeAnnouncement(null).program, null);
     assert.equal(normalizeAnnouncement('문자열').program, null);
     assert.equal(normalizeAnnouncement(undefined).program, null);
+  });
+});
+
+describe('normalizeAnnouncement - bizinfo', () => {
+  test('discrete 시작/종료일 키로 온 항목을 정상 변환한다', () => {
+    const { program, reason } = normalizeAnnouncement(bizinfoItems[0], {
+      source: 'bizinfo',
+      now: new Date('2026-09-14T00:00:00.000Z'),
+    });
+    assert.equal(reason, undefined);
+    assert.ok(program);
+    assert.equal(program!.title, '2026년 청년창업 지원사업');
+    assert.equal(program!.organizer, '서울특별시');
+    assert.equal(
+      program!.sourceUrl,
+      'https://www.bizinfo.go.kr/web/lay1/bbs/S1T122C128/AS/74/view.do?pblancId=B0001',
+    );
+    assert.equal(program!.applyStart, '2026-09-01');
+    assert.equal(program!.applyEnd, '2026-10-15');
+    assert.equal(program!.applyEndTime, '18:00');
+    assert.equal(program!.announceDate, '2026-08-15');
+    assert.equal(program!.supportAmount, '최대 3000만원');
+    assert.equal(program!.source, 'bizinfo');
+    assert.equal(program!.id, 'bizinfo-B0001');
+  });
+
+  test('"YYYY-MM-DD ~ YYYY-MM-DD" 범위 문자열 한 필드로 온 신청기간을 시작/종료로 분리한다', () => {
+    const { program, reason } = normalizeAnnouncement(bizinfoItems[1], { source: 'bizinfo' });
+    assert.equal(reason, undefined);
+    assert.ok(program);
+    assert.equal(program!.title, '지역특화 창업지원 프로그램');
+    assert.equal(program!.organizer, '경기도');
+    assert.equal(program!.applyStart, '2026-09-10');
+    assert.equal(program!.applyEnd, '2026-10-20');
+  });
+
+  test('신청기간 범위 문자열의 형식을 인식할 수 없으면 마감일을 추정하지 않고 조용히 버린다', () => {
+    const { program, reason } = normalizeAnnouncement(bizinfoItems[2], { source: 'bizinfo' });
+    assert.equal(program, null);
+    assert.ok(reason && reason.includes('신청기간'));
+  });
+
+  test('공고명 필드가 없는 항목은 null + 사유를 반환하며 버려진다', () => {
+    const { program, reason } = normalizeAnnouncement(bizinfoItems[3], { source: 'bizinfo' });
+    assert.equal(program, null);
+    assert.ok(reason && reason.includes('공고명'));
+  });
+
+  test('원본에 안정적 ID가 없으면 title+applyEnd로 결정적 id를 만든다 (bizinfo 접두사)', () => {
+    const raw = { pblancNm: '테스트 공고', reqstEndDe: '20261231' };
+    const { program } = normalizeAnnouncement(raw, { source: 'bizinfo' });
+    assert.ok(program);
+    assert.match(program!.id, /^bizinfo-[0-9a-f]{10}$/);
   });
 });
 
@@ -257,5 +315,93 @@ describe('mergePrograms', () => {
     assert.equal(result.merged.length, 2);
     assert.equal(result.added, 1);
     assert.equal(result.aliasSkips.length, 0);
+  });
+});
+
+describe('mergePrograms - 소스 간 제목 표기 차이(퍼지 매칭)', () => {
+  const now = new Date('2026-09-14T00:00:00.000Z');
+
+  test('선행 연도 표기만 다른 같은 공고는 k-startup/bizinfo 소스가 달라도 1건으로 합쳐진다', () => {
+    const existing = autoProgram({
+      source: 'k-startup',
+      title: '2026년 창업도약패키지 2차 모집',
+      applyEnd: '2026-10-15',
+    });
+    const incoming = autoProgram({
+      id: 'bizinfo-1',
+      source: 'bizinfo',
+      title: '창업도약패키지 2차 모집', // 선행 연도만 빠짐
+      applyEnd: '2026-10-20', // 마감일 연장
+      sourceUrl: 'https://bizinfo.go.kr/1',
+    });
+
+    const result = mergePrograms([existing], [incoming], { now });
+
+    assert.equal(result.merged.length, 1);
+    assert.equal(result.added, 0);
+    assert.equal(result.updated, 1);
+    // 제목/출처는 최초 수집 항목(k-startup) 기준을 유지하고, 마감일 등 갱신 대상 필드만 바뀐다.
+    assert.equal(result.merged[0].title, existing.title);
+    assert.equal(result.merged[0].source, 'k-startup');
+    assert.equal(result.merged[0].applyEnd, '2026-10-20');
+    assert.equal(result.merged[0].sourceUrl, 'https://bizinfo.go.kr/1');
+  });
+
+  test('제목이 비슷해도 괄호 안 지역 표기가 다르면 서로 다른 공고로 보고 합치지 않는다', () => {
+    const existing = autoProgram({
+      source: 'k-startup',
+      title: '2026년 소상공인 지원사업(서울)',
+      applyEnd: '2026-10-15',
+    });
+    const incoming = autoProgram({
+      id: 'bizinfo-2',
+      source: 'bizinfo',
+      title: '소상공인 지원사업(경기)', // 지역만 다른 별개 공고
+      applyEnd: '2026-10-20',
+    });
+
+    const result = mergePrograms([existing], [incoming], { now });
+
+    assert.equal(result.merged.length, 2);
+    assert.equal(result.added, 1);
+    assert.equal(result.updated, 0);
+  });
+
+  test('정규화된 제목이 이미 2건 이상과 겹쳐 모호하면 퍼지 매칭을 건너뛰고 신규로 추가한다', () => {
+    const existing = [
+      autoProgram({ id: 'k-startup-a', source: 'k-startup', title: '구직자 취업지원 프로그램', applyEnd: '2026-10-01' }),
+      autoProgram({ id: 'bizinfo-a', source: 'bizinfo', title: '구직자 취업지원 프로그램', applyEnd: '2026-11-01' }),
+    ];
+    const incoming = autoProgram({
+      id: 'k-startup-b',
+      source: 'k-startup',
+      title: '2026년 구직자 취업지원 프로그램',
+      applyEnd: '2026-12-01',
+    });
+
+    const result = mergePrograms(existing, [incoming], { now });
+
+    assert.equal(result.merged.length, 3);
+    assert.equal(result.added, 1);
+    assert.equal(result.updated, 0);
+  });
+
+  test('manual 행은 별칭(aliasTitles) 미지정 시 정규화된 제목이 같아도 퍼지 매칭되지 않고 신규 추가된다', () => {
+    const manual = manualProgram(); // title: '예비창업패키지'
+    const incoming = autoProgram({
+      id: 'bizinfo-x',
+      source: 'bizinfo',
+      title: '2026년 예비창업패키지', // 정규화하면 manual과 같은 제목이지만 alias가 없음
+      applyEnd: '2026-11-01',
+    });
+
+    const result = mergePrograms([manual], [incoming], { now });
+
+    assert.equal(result.merged.length, 2);
+    assert.equal(result.added, 1);
+    assert.deepEqual(
+      result.merged.find((p) => p.id === manual.id),
+      manual,
+    );
   });
 });
