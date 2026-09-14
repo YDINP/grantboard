@@ -29,6 +29,9 @@ export const RESULT_STATUSES = ['최종선정', '탈락', '미지원'] as const 
 /** 아직 제출하지 않은 단계. 내부 마감 초과 경고는 이 단계에서만 의미가 있다. */
 const PRE_SUBMIT_STATUSES: readonly ApplicationStatus[] = ['검토중', '준비', '작성중'];
 
+/** 발표 예정일 경과 판정에서 '결과가 나온' 것으로 보는 상태. 미지원은 발표일과 무관하므로 제외한다. */
+const ANNOUNCED_RESULT_STATUSES: readonly ApplicationStatus[] = ['최종선정', '탈락'];
+
 export function isActiveStatus(status: ApplicationStatus): boolean {
   return (ACTIVE_STATUSES as readonly ApplicationStatus[]).includes(status);
 }
@@ -48,6 +51,8 @@ export interface ApplicationView {
   targetDaysLeft: number | null;
   /** 내부 마감이 지났는데 아직 제출 전 단계 → 경고 대상. */
   overdueUnsubmitted: boolean;
+  /** 공고의 발표 예정일이 지났는데 아직 결과 계열(최종선정/탈락)이 아님 → 경고 대상. */
+  announceOverdue: boolean;
   /** documentIds 중 ready인 서류 비율. */
   docs: { total: number; ready: number };
 }
@@ -123,12 +128,17 @@ export function buildBoard({ programs, applications, documents, profile, today }
       !application.submittedAt &&
       PRE_SUBMIT_STATUSES.includes(application.status);
     const ready = application.documentIds.filter((id) => documentById.get(id)?.ready).length;
+    const announceOverdue =
+      program?.announceDate !== undefined &&
+      daysUntil(program.announceDate, today) < 0 &&
+      !ANNOUNCED_RESULT_STATUSES.includes(application.status);
     return {
       application,
       program,
       deadline: program ? toDeadline(program, today) : null,
       targetDaysLeft,
       overdueUnsubmitted,
+      announceOverdue,
       docs: { total: application.documentIds.length, ready },
     };
   });

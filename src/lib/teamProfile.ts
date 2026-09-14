@@ -9,6 +9,28 @@
 import { z } from 'astro/zod';
 import raw from '../../data/team-profile.json';
 
+// 17개 광역시도로 값 자체를 제한한다 — "시도 단위까지만"이라는 규칙을 주석이 아니라 스키마로
+// 강제한다. z.enum이므로 상세주소("서울시 강남구 ...")가 들어오면 빌드가 실패한다.
+const REGIONS = [
+  '서울',
+  '부산',
+  '대구',
+  '인천',
+  '광주',
+  '대전',
+  '울산',
+  '세종',
+  '경기',
+  '강원',
+  '충북',
+  '충남',
+  '전북',
+  '전남',
+  '경북',
+  '경남',
+  '제주',
+] as const;
+
 const teamProfileSchema = z.object({
   hasBusinessRegistration: z.boolean(),
   businessRegisteredAt: z.string().date().optional(),
@@ -16,7 +38,7 @@ const teamProfileSchema = z.object({
   incorporatedAt: z.string().date().optional(),
   founderBirthYear: z.number().int().optional(),
   // 시도 단위까지만. 상세주소 금지.
-  region: z.string(),
+  region: z.enum(REGIONS),
 });
 
 export type TeamProfileData = z.infer<typeof teamProfileSchema>;

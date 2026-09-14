@@ -80,16 +80,21 @@ export function judgeEligibility(
   }
 
   if (rules.maxBusinessAgeMonths !== undefined) {
-    if (!profile.incorporatedAt) {
-      // 미설립이 '자격 충족'인지 '요건 미달'인지는 공고마다 다르다. 임의로 판정하지 않는다.
+    // 법인 설립일을 우선 기준으로 삼되, 없으면 개인사업자 등록일로 대신 판정한다.
+    // 개인사업자로 시작한 팀은 incorporatedAt이 끝까지 없을 수 있어, 법인만 보면 항상 needs-check로 빠진다.
+    const basisDate = profile.incorporatedAt ?? profile.businessRegisteredAt;
+    const basisLabel = profile.incorporatedAt ? '법인 설립일' : '개인사업자 등록일';
+    if (!basisDate) {
+      // 둘 다 없으면 '자격 충족'인지 '요건 미달'인지 임의로 판정하지 않는다.
       checks.push(
-        `법인 설립 후 ${rules.maxBusinessAgeMonths}개월 이내 조건이 있으나 팀 프로필에 법인 설립일이 없습니다. 미설립 상태가 지원 대상인지 공고문에서 확인하세요.`,
+        `법인 설립 후 ${rules.maxBusinessAgeMonths}개월 이내 조건이 있으나 팀 프로필에 법인 설립일도 개인사업자 등록일도 없습니다. 미등록 상태가 지원 대상인지 공고문에서 확인하세요.`,
       );
     } else {
-      const age = monthsSince(profile.incorporatedAt, today);
+      const age = monthsSince(basisDate, today);
       if (age > rules.maxBusinessAgeMonths) {
+        // 어느 날짜를 기준으로 판정했는지 사람이 알 수 있게 basisLabel을 명시한다.
         blockers.push(
-          `법인 설립 후 ${rules.maxBusinessAgeMonths}개월 이내만 지원 가능한데, 설립일(${profile.incorporatedAt}) 기준 ${age}개월이 지났습니다.`,
+          `${basisLabel} 후 ${rules.maxBusinessAgeMonths}개월 이내만 지원 가능한데, ${basisLabel}(${basisDate}) 기준 ${age}개월이 지났습니다.`,
         );
       }
     }

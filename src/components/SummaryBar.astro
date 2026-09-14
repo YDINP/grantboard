@@ -1,6 +1,6 @@
 ---
 import type { BoardSummary } from '../lib/board.ts';
-import { formatDday, DEADLINE_TONE } from '../lib/format.ts';
+import { formatDday, DEADLINE_TONE, type Tone } from '../lib/format.ts';
 
 interface Props {
   summary: BoardSummary;
@@ -10,7 +10,8 @@ const { summary } = Astro.props;
 const { nearest, activeCount, docAlertCount, overdueCount } = summary;
 
 // 0이면 조용히(회색), 0이 아니면 해당 상태색. 가장 임박한 마감은 deadlineState 색을 그대로 따른다.
-const nearestTone = nearest ? DEADLINE_TONE[nearest.deadline.state] : 'quiet';
+// Tone으로 명시 타입 지정 — 'quiet'가 Tone 밖의 값이면 여기서 타입 에러로 잡힌다.
+const nearestTone: Tone = nearest ? DEADLINE_TONE[nearest.deadline.state] : 'quiet';
 ---
 
 <section class="summary" aria-label="오늘 요약">

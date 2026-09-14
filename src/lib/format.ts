@@ -10,14 +10,24 @@ import type { DocumentExpiryState } from './documents.ts';
 
 /**
  * 배지·숫자에 쓰는 색상 톤. 색은 상태를 나타낼 때만 쓴다.
- * red=차단/위험, orange=임박, amber=사람 확인 필요, green=정상, blue=예정/정보, gray=비활성.
+ * red=차단/위험, orange=임박, amber=사람 확인 필요, green=정상, blue=예정/정보, gray=비활성, quiet=수치 0(강조 없음).
  */
-export type Tone = 'neutral' | 'gray' | 'green' | 'blue' | 'amber' | 'orange' | 'red';
+export type Tone = 'neutral' | 'gray' | 'green' | 'blue' | 'amber' | 'orange' | 'red' | 'quiet';
 
 /** 남은 일수를 'D-n' / 'D-Day' / 'D+n'으로. */
 export function formatDday(days: number): string {
   if (days === 0) return 'D-Day';
   return days > 0 ? `D-${days}` : `D+${-days}`;
+}
+
+/**
+ * program.sourceUrl이 실제로 열 수 있는 링크인지. '#'은 출처 URL을 아직 못 구한 자리표시자라
+ * target="_blank"로 열면 빈 새 탭만 뜬다 — 이런 값은 링크가 아니라 일반 텍스트로 렌더링해야 한다.
+ * 공고 제목을 링크로 그리는 모든 곳(TimelineItem, KanbanColumn 등)이 이 판정을 공유해서 써야
+ * 한쪽만 고치고 다른 쪽을 빠뜨리는 일이 없다.
+ */
+export function isLinkable(sourceUrl: string): boolean {
+  return sourceUrl !== '#';
 }
 
 /** 'YYYY-MM-DD' → 'M/D'. 월 헤더로 연도가 이미 보이는 자리에서 쓴다. */

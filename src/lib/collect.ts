@@ -30,6 +30,9 @@ export interface ProgramRecord {
   source: 'manual' | AutoSource;
   collectedAt?: string;
   eligibility?: Record<string, unknown>;
+  // manual 행 전용. 자동수집 공고가 이 제목들 중 하나로 들어오면 같은 공고로 보고
+  // 신규 추가 대신 이 manual 행을 유지한 채 스킵한다. mergePrograms 참고.
+  aliasTitles?: string[];
 }
 
 export interface NormalizeResult {
@@ -154,7 +157,7 @@ export function normalizeAnnouncement(raw: unknown, options: NormalizeOptions = 
   const supportAmount = pickString(r, SUPPORT_AMOUNT_KEYS);
 
   const idRaw = pickString(r, ID_KEYS);
-  const id = idRaw ? `k-startup-${idRaw}` : `k-startup-${deterministicIdSuffix(`${title}|${applyEnd}`)}`;
+  const id = idRaw ? `${source}-${idRaw}` : `${source}-${deterministicIdSuffix(`${title}|${applyEnd}`)}`;
 
   return {
     program: {
@@ -182,6 +185,11 @@ export interface MergeStats {
   added: number;
   updated: number;
   skipped: number;
+  /**
+   * manual 행의 aliasTitles와 매칭돼 신규 추가 대신 스킵된 자동수집 항목 상세.
+   * skipped 카운트에도 포함되어 있다 — 이건 "왜" 스킵됐는지 사람이 로그로 볼 수 있게 별도로 남기는 것.
+   */
+  aliasSkips: { manualTitle: string; incomingTitle: string }[];
 }
 
 interface MergeOptions {
@@ -189,16 +197,21 @@ interface MergeOptions {
 }
 
 // 자동수집 병합 시 갱신 대상이 되는 필드. id/title/source/collectedAt은 병합 로직이 별도로 관리한다.
+//
+// ⚠️ category/tags는 여기 넣지 않는다. normalizeAnnouncement는 원본 API에 분류 필드가
+// 무엇인지 몰라 항상 category: '정부지원사업', tags: []라는 기본값만 채운다. 이 필드들이
+// UPDATABLE_FIELDS에 있으면, 팀이 실제 값으로 수동 수정해도(category: '경진대회' 등) 다음날
+// 크론이 그 기본값으로 되돌려버린다 — 되돌린 사실이 커밋 로그("자동수집 갱신")에도 드러나지
+// 않아 발견하기 어렵다. 자동수집은 최초 생성 시에만 기본값을 채우고, 이후 사람이 고친 값은
+// 절대 건드리지 않는다.
 const UPDATABLE_FIELDS: (keyof ProgramRecord)[] = [
   'organizer',
   'sourceUrl',
-  'category',
   'applyStart',
   'applyEnd',
   'applyEndTime',
   'announceDate',
   'supportAmount',
-  'tags',
   'eligibility',
 ];
 
@@ -229,14 +242,18 @@ function applyUpdates(current: ProgramRecord, incoming: ProgramRecord): { change
 /**
  * 기존 programs 배열에 자동수집분을 병합한다.
  *
- * 중복 판정은 두 단계다:
+ * 중복 판정은 세 단계다:
  * 1) 공고명+마감일이 완전히 같으면 같은 공고의 재수집으로 보고 다른 변경분(URL 등)만 갱신한다.
- * 2) 완전히 같은 조합이 없더라도, 자동수집 항목 중 공고명이 같은 게 정확히 하나 있으면
+ * 2) manual 행의 aliasTitles 중 하나와 공고명이 일치하면, 공식 명칭이 다르게 들어온 같은 공고로
+ *    보고 그 manual 행으로 매칭한다(마감일 일치 여부는 보지 않는다 — alias는 사람이 직접 지정한
+ *    확실한 매칭이므로).
+ * 3) 위 둘 다 아니면, 자동수집 항목 중 공고명이 같은 게 정확히 하나 있으면
  *    "같은 공고인데 마감일이 연장/변경된 경우"로 보고 그 항목을 갱신한다(신규 추가하지 않음).
  *    단, 같은 제목의 자동수집 항목이 이미 여러 건이면(연례 반복 공고 등) 어느 것인지 모호하므로
  *    이 단계는 건너뛰고 신규 추가로 처리한다.
  *
- * `source: 'manual'`인 항목은 위 두 단계 어디서 매칭되든 절대 덮어쓰지 않고 skipped로만 센다.
+ * `source: 'manual'`인 항목은 위 단계 어디서 매칭되든 절대 덮어쓰지 않고 skipped로만 센다.
+ * alias로 매칭되어 스킵된 경우는 aliasSkips에도 상세가 남는다(호출자가 로그로 남길 수 있게).
  * incoming이 비어 있으면 아무것도 하지 않는다 — API가 일시적으로 빈 배열을 줘도 기존 데이터가
  * 지워지지 않는다.
  */
@@ -250,15 +267,21 @@ export function mergePrograms(
 
   let exactIndex = new Map<string, number>();
   let titleIndex = new Map<string, number>(); // -1 = 동일 제목 자동수집 항목이 2건 이상이라 모호함
+  let aliasIndex = new Map<string, number>(); // manual 행의 aliasTitles -> 그 manual 행 인덱스
 
   const rebuildIndexes = () => {
     exactIndex = new Map();
     titleIndex = new Map();
+    aliasIndex = new Map();
     merged.forEach((p, i) => {
       exactIndex.set(exactKey(p), i);
       if (p.source !== 'manual') {
         const tKey = titleKey(p);
         titleIndex.set(tKey, titleIndex.has(tKey) ? -1 : i);
+      } else {
+        for (const alias of p.aliasTitles ?? []) {
+          aliasIndex.set(alias.trim(), i);
+        }
       }
     });
   };
@@ -267,9 +290,19 @@ export function mergePrograms(
   let added = 0;
   let updated = 0;
   let skipped = 0;
+  const aliasSkips: { manualTitle: string; incomingTitle: string }[] = [];
 
   for (const incomingProgram of incoming) {
     let targetIndex = exactIndex.get(exactKey(incomingProgram));
+    let aliasMatchedManualTitle: string | undefined;
+
+    if (targetIndex === undefined) {
+      const aliasMatch = aliasIndex.get(titleKey(incomingProgram));
+      if (aliasMatch !== undefined) {
+        targetIndex = aliasMatch;
+        aliasMatchedManualTitle = merged[aliasMatch].title;
+      }
+    }
 
     if (targetIndex === undefined) {
       const titleMatch = titleIndex.get(titleKey(incomingProgram));
@@ -288,6 +321,9 @@ export function mergePrograms(
     const current = merged[targetIndex];
     if (current.source === 'manual') {
       skipped += 1;
+      if (aliasMatchedManualTitle !== undefined) {
+        aliasSkips.push({ manualTitle: aliasMatchedManualTitle, incomingTitle: incomingProgram.title });
+      }
       continue;
     }
 
@@ -301,5 +337,5 @@ export function mergePrograms(
     }
   }
 
-  return { merged, added, updated, skipped };
+  return { merged, added, updated, skipped, aliasSkips };
 }

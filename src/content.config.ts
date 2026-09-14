@@ -24,6 +24,9 @@ const programs = defineCollection({
     // 자동수집분 구분용. 기본은 수동 입력.
     source: z.enum(['manual', 'k-startup', 'bizinfo']).default('manual'),
     collectedAt: z.string().datetime().optional(),
+    // manual 행 전용. 자동수집이 다른 공식 명칭으로 같은 공고를 가져왔을 때 중복 추가하지 않고
+    // 이 manual 행으로 매칭시키기 위한 별칭 목록. src/lib/collect.ts의 mergePrograms 참고.
+    aliasTitles: z.array(z.string()).default([]),
     // 자격요건. 자동판정(eligibility.ts)이 쓰는 하드 필터만 구조화하고,
     // 예외가 많아 기계가 판단할 수 없는 조건은 전부 note로 보낸다.
     eligibility: z
@@ -62,7 +65,9 @@ const applications = defineCollection({
       '미지원',
     ]),
     // 담당자 표기. 이 레포는 public이다 — 실명 금지, 이니셜이나 닉네임만 쓸 것.
-    owner: z.string(),
+    // 완벽한 차단은 아니지만(이니셜도 4자로 조합 가능), "홍길동 대표" 같은 실명 표기는 막는다.
+    // 경고 주석만으로는 부족하다 — public 레포이고 커밋 히스토리는 지울 수 없다.
+    owner: z.string().max(4),
     priority: z.enum(['high', 'mid', 'low']).default('mid'),
     // 팀 내부 마감일. 마감 당일 접속 폭주/전산오류로 제출이 실패하는 사례가 흔해
     // 실제 마감(applyEnd)보다 1~2일 앞당겨 잡는다.

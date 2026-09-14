@@ -91,6 +91,38 @@ describe('judgeEligibility - 업력(법인 설립) 요건', () => {
     assert.equal(result.verdict, 'ineligible');
     assert.match(result.reasons[0], /36개월/);
   });
+
+  test('법인 미설립 + 개인사업자 등록일만 있으면 등록일 기준으로 판정한다 (36개월 이내 -> eligible)', () => {
+    const team: TeamProfile = { ...preStartupTeam, businessRegisteredAt: '2024-09-14' };
+    const result = judgeEligibility(program, team, TODAY);
+    assert.equal(result.verdict, 'eligible');
+  });
+
+  test('법인 미설립 + 개인사업자 등록일 기준 36개월 초과 -> ineligible, 등록일 기준임을 밝힌다', () => {
+    const team: TeamProfile = { ...preStartupTeam, businessRegisteredAt: '2023-08-14' };
+    const result = judgeEligibility(program, team, TODAY);
+    assert.equal(result.verdict, 'ineligible');
+    assert.match(result.reasons[0], /개인사업자 등록일/);
+    assert.match(result.reasons[0], /36개월/);
+  });
+
+  test('법인 설립일과 개인사업자 등록일이 둘 다 있으면 법인 설립일을 우선한다', () => {
+    // 법인 설립일 기준으로는 36개월 초과, 개인사업자 등록일 기준으로는 이내 -> 법인 기준을 따라 ineligible.
+    const team: TeamProfile = {
+      ...preStartupTeam,
+      incorporatedAt: '2023-08-14',
+      businessRegisteredAt: '2024-09-14',
+    };
+    const result = judgeEligibility(program, team, TODAY);
+    assert.equal(result.verdict, 'ineligible');
+    assert.match(result.reasons[0], /법인 설립일/);
+  });
+
+  test('법인 설립일도 개인사업자 등록일도 없으면 여전히 needs-check', () => {
+    const result = judgeEligibility(program, preStartupTeam, TODAY);
+    assert.equal(result.verdict, 'needs-check');
+    assert.match(result.reasons[0], /법인 설립일도 개인사업자 등록일도 없습니다/);
+  });
 });
 
 describe('judgeEligibility - 연령 요건', () => {

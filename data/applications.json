@@ -7,8 +7,11 @@
     "priority": "high",
     "targetSubmitDate": "2026-09-28",
     "submittedAt": "2026-09-05",
-    "documentIds": ["doc-plan", "doc-id-copy"],
-    "note": ""
+    "documentIds": [
+      "doc-plan",
+      "doc-id-copy"
+    ],
+    "note": "접수증 수령 확인. 발표일까지 추가 제출 요구 없음"
   },
   {
     "id": "app-mock-startup-2026",
@@ -18,7 +21,10 @@
     "priority": "mid",
     "targetSubmitDate": "2026-08-29",
     "submittedAt": "2026-08-25",
-    "documentIds": ["doc-plan", "doc-employment-cert"],
+    "documentIds": [
+      "doc-plan",
+      "doc-employment-cert"
+    ],
     "note": ""
   },
   {
@@ -28,7 +34,11 @@
     "owner": "K",
     "priority": "high",
     "targetSubmitDate": "2026-10-18",
-    "documentIds": ["doc-plan", "doc-id-copy", "doc-biz-cert"],
-    "note": ""
+    "documentIds": [
+      "doc-plan",
+      "doc-id-copy",
+      "doc-biz-cert"
+    ],
+    "note": "사업자등록증명원 재발급 필요 — 만료됨"
   }
 ]

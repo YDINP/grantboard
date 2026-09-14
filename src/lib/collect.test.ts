@@ -214,4 +214,48 @@ describe('mergePrograms', () => {
     assert.equal(result.updated, 0);
     assert.equal(result.skipped, 1);
   });
+
+  test('사람이 자동수집 행의 category/tags를 고치면 같은 공고가 재수집돼도 유지된다', () => {
+    const existing = autoProgram({ category: '경진대회', tags: ['데모데이'] });
+    // incoming은 normalizeAnnouncement처럼 항상 기본값(category/tags)을 들고 온다.
+    const incoming = autoProgram({ sourceUrl: 'https://k-startup.go.kr/updated' });
+
+    const result = mergePrograms([existing], [incoming], { now });
+
+    assert.equal(result.merged[0].category, '경진대회');
+    assert.deepEqual(result.merged[0].tags, ['데모데이']);
+    // category/tags는 갱신 대상에서 빠졌지만 sourceUrl 등 다른 필드는 여전히 갱신된다.
+    assert.equal(result.merged[0].sourceUrl, 'https://k-startup.go.kr/updated');
+    assert.equal(result.updated, 1);
+  });
+
+  test('manual 행의 aliasTitles와 제목이 일치하는 자동수집 항목은 중복 추가되지 않고 manual이 유지된다', () => {
+    const manual = manualProgram({ aliasTitles: ['2026년 예비창업패키지 예비창업자 모집 공고'] });
+    const incoming = autoProgram({
+      title: '2026년 예비창업패키지 예비창업자 모집 공고',
+      applyEnd: '2026-11-30', // manual과 마감일이 달라도 alias면 매칭된다
+    });
+
+    const result = mergePrograms([manual], [incoming], { now });
+
+    assert.equal(result.merged.length, 1);
+    assert.deepEqual(result.merged[0], manual);
+    assert.equal(result.added, 0);
+    assert.equal(result.updated, 0);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.aliasSkips.length, 1);
+    assert.equal(result.aliasSkips[0].manualTitle, manual.title);
+    assert.equal(result.aliasSkips[0].incomingTitle, incoming.title);
+  });
+
+  test('aliasTitles가 없는 manual 행은 alias 매칭 대상이 되지 않는다', () => {
+    const manual = manualProgram();
+    const incoming = autoProgram({ title: '전혀 다른 이름의 공고', applyEnd: '2026-12-01' });
+
+    const result = mergePrograms([manual], [incoming], { now });
+
+    assert.equal(result.merged.length, 2);
+    assert.equal(result.added, 1);
+    assert.equal(result.aliasSkips.length, 0);
+  });
 });

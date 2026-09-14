@@ -1,7 +1,7 @@
 ---
 import Badge from './Badge.astro';
 import type { ProgramView } from '../lib/board.ts';
-import { formatDday, formatShortDate, VERDICT_LABEL, VERDICT_TONE } from '../lib/format.ts';
+import { formatDday, formatShortDate, isLinkable, VERDICT_LABEL, VERDICT_TONE } from '../lib/format.ts';
 
 interface Props {
   view: ProgramView;
@@ -34,7 +34,15 @@ const headline =
 
   <div class="body">
     <div class="title-row">
-      <a class="title" href={program.sourceUrl} target="_blank" rel="noopener">{program.title}</a>
+      {
+        isLinkable(program.sourceUrl) ? (
+          <a class="title" href={program.sourceUrl} target="_blank" rel="noopener">
+            {program.title}
+          </a>
+        ) : (
+          <span class="title no-link">{program.title}</span>
+        )
+      }
       <Badge>{program.category}</Badge>
     </div>
     <p class="org">
@@ -64,11 +72,24 @@ const headline =
         }
       </li>
       {
-        applications.map(({ application }) => (
+        program.announceDate && (
+          <li class="announce">
+            <Badge tone="blue">발표예정 {program.announceDate}</Badge>
+          </li>
+        )
+      }
+      {
+        applications.map(({ application, announceOverdue }) => (
           <li>
             <span class="status">{application.status}</span>
             <span>· 담당 {application.owner}</span>
             {application.submittedAt && <span>· 제출 {application.submittedAt}</span>}
+            {
+              announceOverdue && (
+                <Badge tone="amber" strong>발표 예정일 경과</Badge>
+              )
+            }
+            {application.note && <p class="note" title={application.note}>{application.note}</p>}
           </li>
         ))
       }
@@ -192,6 +213,16 @@ const headline =
     color: var(--text-3);
     text-decoration: line-through;
   }
+  /* sourceUrl이 '#'(미확보)이면 링크 대신 일반 텍스트로 렌더링한다 — 클릭해도 빈 새 탭이 열리지 않게. */
+  .title.no-link {
+    cursor: default;
+  }
+  .title.no-link::after {
+    content: none;
+  }
+  .title.no-link:hover {
+    text-decoration: none;
+  }
 
   .org {
     margin: 0.1rem 0 0;
@@ -231,6 +262,21 @@ const headline =
   .overdue strong {
     color: var(--red);
     font-weight: 600;
+  }
+  /* 발표 예정일은 별도 줄의 배지로 — 마감(strong 텍스트)과 시각적으로 혼동되지 않게. */
+  .announce {
+    margin-top: 0.1rem;
+  }
+
+  .note {
+    flex-basis: 100%;
+    margin: 0.15rem 0 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.78rem;
+    color: var(--text-3);
   }
 
   .verdict {

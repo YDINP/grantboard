@@ -10,6 +10,11 @@
  * ⚠️ 이 스크립트의 API 파라미터명/응답 구조(fetchAllAnnouncements, extractItems 내부)는
  * 서비스키가 없어 실호출로 검증하지 못한 추측이다. 아래 주석에 "미확인"이라고 표시한 부분은
  * 실제 키를 받은 뒤 반드시 실호출로 확인하고 고칠 것.
+ *
+ * ⚠️ 엔드포인트(API_ENDPOINT)는 공공데이터포털 구형 규격(apis.data.go.kr/B552735/...)이라,
+ * 파라미터도 구형 규격(pageNo/numOfRows/type=json)으로 가정해 맞춰뒀다. 표준 데이터포털 신형
+ * 규격(page/perPage/returnType 등)이 아니다 — 실호출로 실제 응답을 받아본 뒤 구형 가정이 맞는지
+ * 반드시 확인할 것.
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -39,8 +44,14 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** 응답 본문 스니펫에 서비스키가 그대로 섞여 나오는 걸 막는다 — 공공데이터 오류 응답이 요청을 에코하는 경우가 있다. */
+function scrubServiceKey(text, serviceKey) {
+  if (!serviceKey) return text;
+  return text.split(serviceKey).join('***');
+}
+
 /** fetch 실패/5xx는 지수 백오프로 최대 MAX_RETRIES회 재시도한다. 429는 즉시 중단한다(요청 한도 초과이므로 재시도해도 악화될 뿐). */
-async function fetchJsonWithRetry(url) {
+async function fetchJsonWithRetry(url, serviceKey) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
     let res;
@@ -69,7 +80,17 @@ async function fetchJsonWithRetry(url) {
       throw lastError;
     }
 
-    return res.json();
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      // type 파라미터를 json으로 넣어도 구형 규격 API는 종종 XML을 반환한다. 재시도해도 나아지지
+      // 않는 설정 문제이므로 재시도하지 않고 바로 진단 가능한 메시지로 중단한다.
+      const snippet = scrubServiceKey(text, serviceKey).slice(0, 200);
+      throw new Error(
+        `API 응답이 JSON이 아닙니다 — type 파라미터나 엔드포인트 규격(구형/신형)을 확인하세요. (응답 시작 부분: ${snippet})`,
+      );
+    }
   }
   throw lastError ?? new Error('알 수 없는 이유로 API 호출에 실패했습니다.');
 }
@@ -106,19 +127,23 @@ async function fetchAllAnnouncements(serviceKey) {
   for (let pageNo = 1; pageNo <= MAX_PAGES; pageNo += 1) {
     const url = new URL(API_ENDPOINT);
     url.searchParams.set('serviceKey', serviceKey);
-    // ⚠️ 미확인 — 페이지 번호/페이지당 건수 파라미터명이 다를 수 있다(예: pageNo/perPage vs page/numOfRows).
-    url.searchParams.set('page', String(pageNo));
-    url.searchParams.set('perPage', String(PAGE_SIZE));
-    // ⚠️ 미확인 — 응답 형식을 json으로 지정하는 파라미터명이 다를 수 있다.
-    url.searchParams.set('returnType', 'json');
+    // ⚠️ 미확인 — 구형 규격(pageNo/numOfRows)으로 가정. 신형 표준 API 규격(page/perPage)이 아니다.
+    url.searchParams.set('pageNo', String(pageNo));
+    url.searchParams.set('numOfRows', String(PAGE_SIZE));
+    // ⚠️ 미확인 — 구형 규격은 기본 응답이 XML이라 type=json으로 명시해야 한다고 가정.
+    url.searchParams.set('type', 'json');
 
     console.log(`[collect] 요청: ${redactedUrl(url)}`);
-    const data = await fetchJsonWithRetry(url);
+    const data = await fetchJsonWithRetry(url, serviceKey);
     const items = extractItems(data);
     all.push(...items);
 
+    // 종료 조건은 "0건 응답" 또는 "totalCount 도달"만 본다. numOfRows가 서버에서 무시돼
+    // PAGE_SIZE보다 적게 오는 경우(예: 강제로 10건씩만 주는 서버)가 있는데, 그걸 "마지막 페이지"로
+    // 오인하면 나머지 페이지를 건너뛰고도 에러 없이 성공한 것처럼 보인다 — 그래서
+    // `items.length < PAGE_SIZE`는 종료 조건에서 뺐다.
     const totalCount = getTotalCount(data);
-    const reachedEnd = items.length === 0 || (totalCount !== undefined && all.length >= totalCount) || items.length < PAGE_SIZE;
+    const reachedEnd = items.length === 0 || (totalCount !== undefined && all.length >= totalCount);
     if (reachedEnd) break;
   }
   return all;
@@ -138,6 +163,10 @@ async function main() {
     return;
   }
 
+  const existingRaw = await readFile(DATA_PATH, 'utf-8');
+  const existing = JSON.parse(existingRaw);
+  const existingAutoCount = existing.filter((p) => p.source === 'k-startup').length;
+
   let rawItems;
   try {
     rawItems = await fetchAllAnnouncements(serviceKey);
@@ -145,6 +174,16 @@ async function main() {
     console.error(`[collect] API 호출 실패: ${err.message}`);
     process.exitCode = 1;
     return;
+  }
+
+  // 수집 건수 이상 감지. 데이터를 지우거나 실패시키지는 않는다 — 그냥 사람이 워크플로 로그에서
+  // 볼 수 있게 뚜렷한 경고만 남긴다. 실제 대응(재시도/조사)은 사람이 판단한다.
+  if (rawItems.length === 0) {
+    console.warn('[collect] ⚠️ 경고: API가 0건을 반환했습니다. 엔드포인트/파라미터 규격을 확인하세요.');
+  } else if (existingAutoCount > 0 && rawItems.length < existingAutoCount * 0.5) {
+    console.warn(
+      `[collect] ⚠️ 경고: 수집 건수(${rawItems.length}건)가 기존 자동수집 건수(${existingAutoCount}건) 대비 급감했습니다. 페이지네이션/파라미터 규격을 확인하세요.`,
+    );
   }
 
   const normalized = [];
@@ -162,11 +201,14 @@ async function main() {
     if (dropped.length > 20) console.warn(`  ... 외 ${dropped.length - 20}건`);
   }
 
-  const existingRaw = await readFile(DATA_PATH, 'utf-8');
-  const existing = JSON.parse(existingRaw);
-
-  const { merged, added, updated, skipped } = mergePrograms(existing, normalized);
+  const { merged, added, updated, skipped, aliasSkips } = mergePrograms(existing, normalized);
   console.log(`[collect] 병합 결과: 추가 ${added} / 갱신 ${updated} / 변경없음(스킵) ${skipped} / 총 ${merged.length}건`);
+  if (aliasSkips.length > 0) {
+    console.log('[collect] alias 매칭으로 스킵된 항목(수동 입력이 우선, 덮어쓰지 않음):');
+    for (const { manualTitle, incomingTitle } of aliasSkips) {
+      console.log(`  - "${incomingTitle}" -> manual 행 "${manualTitle}"의 별칭으로 처리`);
+    }
+  }
 
   if (dryRun) {
     console.log('[collect] --dry-run 모드: 파일에 쓰지 않았습니다.');

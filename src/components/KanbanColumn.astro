@@ -1,7 +1,7 @@
 ---
 import Badge from './Badge.astro';
 import type { ApplicationStatus, ApplicationView } from '../lib/board.ts';
-import { formatDday, formatShortDate, DEADLINE_TONE } from '../lib/format.ts';
+import { formatDday, formatShortDate, isLinkable, DEADLINE_TONE } from '../lib/format.ts';
 
 interface Props {
   status: ApplicationStatus;
@@ -11,9 +11,10 @@ interface Props {
 const { status, cards } = Astro.props;
 
 // 컬럼 안에서는 마감 임박순. 공고 데이터가 없는 카드는 맨 뒤.
+// Infinity - Infinity는 NaN이라 카드가 2장 이상 없으면 정렬 순서가 미정의가 된다. 유한값으로 대체한다.
 const sorted = [...cards].sort(
   (a, b) =>
-    (a.deadline?.daysLeft ?? Number.POSITIVE_INFINITY) - (b.deadline?.daysLeft ?? Number.POSITIVE_INFINITY),
+    (a.deadline?.daysLeft ?? Number.MAX_SAFE_INTEGER) - (b.deadline?.daysLeft ?? Number.MAX_SAFE_INTEGER),
 );
 ---
 
@@ -48,10 +49,13 @@ const sorted = [...cards].sort(
                 {application.priority === 'low' && <Badge tone="gray">low</Badge>}
               </div>
 
-              {program ? (
+              {program && isLinkable(program.sourceUrl) ? (
                 <a class="title" href={program.sourceUrl} target="_blank" rel="noopener">
                   {program.title}
                 </a>
+              ) : program ? (
+                // sourceUrl이 '#'(미확보)이면 링크 대신 일반 텍스트로 — 클릭해도 빈 새 탭이 열리지 않게.
+                <span class="title no-link">{program.title}</span>
               ) : (
                 <span class="title missing">{application.programId} (공고 데이터 없음)</span>
               )}
@@ -91,6 +95,11 @@ const sorted = [...cards].sort(
               )}
 
               {overdueUnsubmitted && <p class="alert">내부 마감 지남 · 미제출</p>}
+              {application.note && (
+                <p class="note" title={application.note}>
+                  {application.note}
+                </p>
+              )}
             </li>
           );
         })}
@@ -195,6 +204,13 @@ const sorted = [...cards].sort(
   .title:hover {
     text-decoration: underline;
   }
+  /* sourceUrl이 '#'(미확보)이면 링크가 아니라 텍스트다 — hover 밑줄도 클릭 가능하다는 오해를 주므로 끈다. */
+  .title.no-link {
+    cursor: default;
+  }
+  .title.no-link:hover {
+    text-decoration: none;
+  }
   .title.missing {
     color: var(--text-3);
   }
@@ -265,5 +281,14 @@ const sorted = [...cards].sort(
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--red);
+  }
+
+  .note {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.72rem;
+    color: var(--text-3);
   }
 </style>
