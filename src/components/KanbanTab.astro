@@ -1,0 +1,118 @@
+---
+import KanbanColumn from './KanbanColumn.astro';
+import {
+  ACTIVE_STATUSES,
+  RESULT_STATUSES,
+  type ApplicationStatus,
+  type ApplicationView,
+} from '../lib/board.ts';
+
+interface Props {
+  applications: ApplicationView[];
+}
+
+const { applications } = Astro.props;
+
+const byStatus = (status: ApplicationStatus) => applications.filter((v) => v.application.status === status);
+const resultCounts = RESULT_STATUSES.map((status) => ({ status, count: byStatus(status).length }));
+const resultTotal = resultCounts.reduce((n, r) => n + r.count, 0);
+---
+
+<div class="kanban">
+  <p class="notice">
+    읽기 전용 보드입니다. 상태를 바꾸려면 <code>data/applications.json</code>의 <code>status</code>를 고쳐
+    커밋하세요 — 정적 사이트라 화면에서 옮겨도 저장할 곳이 없습니다.
+  </p>
+
+  {
+    applications.length === 0 && (
+      <p class="empty">
+        지원건이 없습니다. <code>data/applications.json</code>에 <code>programId</code>로 공고를 연결해
+        추가하세요.
+      </p>
+    )
+  }
+
+  <div class="board">
+    {ACTIVE_STATUSES.map((status) => <KanbanColumn status={status} cards={byStatus(status)} />)}
+  </div>
+
+  <details class="results">
+    <summary>
+      <span>결과</span>
+      <span class="count">{resultTotal}</span>
+      <span class="hint">{resultCounts.map((r) => `${r.status} ${r.count}`).join(' · ')}</span>
+    </summary>
+    <div class="board">
+      {RESULT_STATUSES.map((status) => <KanbanColumn status={status} cards={byStatus(status)} />)}
+    </div>
+  </details>
+</div>
+
+<style>
+  .kanban {
+    /* 자식 .board가 가로 스크롤을 갖되, 페이지 자체는 절대 넓어지지 않게 */
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .notice,
+  .empty {
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 0.8rem;
+    color: var(--text-2);
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    padding: 0.05em 0.3em;
+    border-radius: 3px;
+    background: var(--surface-2);
+  }
+
+  .board {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(200px, 1fr);
+    /* 빈 컬럼이 가장 긴 컬럼 높이까지 늘어나 화면을 빈 상자로 채우지 않게 */
+    align-items: start;
+    gap: 0.6rem;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    scrollbar-gutter: stable;
+  }
+
+  .results {
+    margin-top: 1rem;
+  }
+  .results summary {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .results summary::marker {
+    color: var(--text-3);
+  }
+  .results .count {
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .results .hint {
+    font-weight: 500;
+    font-size: 0.75rem;
+    color: var(--text-3);
+  }
+  .results .board {
+    margin-top: 0.25rem;
+  }
+</style>

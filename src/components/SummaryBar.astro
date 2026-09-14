@@ -1,0 +1,108 @@
+---
+import type { BoardSummary } from '../lib/board.ts';
+import { formatDday, DEADLINE_TONE } from '../lib/format.ts';
+
+interface Props {
+  summary: BoardSummary;
+}
+
+const { summary } = Astro.props;
+const { nearest, activeCount, docAlertCount, overdueCount } = summary;
+
+// 0이면 조용히(회색), 0이 아니면 해당 상태색. 가장 임박한 마감은 deadlineState 색을 그대로 따른다.
+const nearestTone = nearest ? DEADLINE_TONE[nearest.deadline.state] : 'quiet';
+---
+
+<section class="summary" aria-label="오늘 요약">
+  <div class:list={['stat', `tone-${nearestTone}`]}>
+    <span class="label">가장 임박한 마감</span>
+    <span class="value">{nearest ? formatDday(nearest.deadline.daysLeft) : '—'}</span>
+    <span class="hint">{nearest ? nearest.program.title : '접수 중인 공고 없음'}</span>
+  </div>
+  <div class:list={['stat', activeCount > 0 ? 'tone-blue' : 'tone-quiet']}>
+    <span class="label">진행 중 지원건</span>
+    <span class="value">{activeCount}</span>
+    <span class="hint">검토중 ~ 서류통과</span>
+  </div>
+  <div class:list={['stat', docAlertCount > 0 ? 'tone-orange' : 'tone-quiet']}>
+    <span class="label">만료·임박 서류</span>
+    <span class="value">{docAlertCount}</span>
+    <span class="hint">{docAlertCount > 0 ? '서류 탭에서 확인' : '이상 없음'}</span>
+  </div>
+  <div class:list={['stat', overdueCount > 0 ? 'tone-red' : 'tone-quiet']}>
+    <span class="label">내부 마감 초과 미제출</span>
+    <span class="value">{overdueCount}</span>
+    <span class="hint">{overdueCount > 0 ? '즉시 확인' : '없음'}</span>
+  </div>
+</section>
+
+<style>
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 720px) {
+    .summary {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .stat {
+    --stat-color: var(--line);
+    display: grid;
+    gap: 0.05rem;
+    min-width: 0;
+    padding: 0.55rem 0.75rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--stat-color);
+    border-radius: var(--radius);
+  }
+
+  .label {
+    font-size: 0.72rem;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--stat-color);
+  }
+
+  .hint {
+    font-size: 0.72rem;
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tone-quiet .value {
+    color: var(--text-3);
+  }
+  /* open 상태(여유 있음)는 숫자만 흰색, 왼쪽 띠는 그대로 */
+  .tone-neutral .value {
+    color: var(--text);
+  }
+  .tone-red {
+    --stat-color: var(--red);
+  }
+  .tone-orange {
+    --stat-color: var(--orange);
+  }
+  .tone-blue {
+    --stat-color: var(--blue);
+  }
+  .tone-gray {
+    --stat-color: var(--gray);
+  }
+</style>

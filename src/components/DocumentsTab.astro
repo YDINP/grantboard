@@ -1,0 +1,278 @@
+---
+import Badge from './Badge.astro';
+import { isActiveStatus, type DocumentView } from '../lib/board.ts';
+import { formatDday, DOC_STATE_LABEL, DOC_STATE_TONE } from '../lib/format.ts';
+
+interface Props {
+  /** 만료됨 → 임박 → 미확인 → 유효 순으로 정렬된 서류 목록 (board.ts가 보장). */
+  documents: DocumentView[];
+}
+
+const { documents } = Astro.props;
+
+const blocking = documents.filter((v) => v.blocksActive);
+
+function stateLabel({ expiry }: DocumentView): string {
+  if (expiry.state === 'expiring' && expiry.daysLeft !== null) {
+    return `${DOC_STATE_LABEL.expiring} ${formatDday(expiry.daysLeft)}`;
+  }
+  return DOC_STATE_LABEL[expiry.state];
+}
+
+function usageLabel(usage: DocumentView['usedBy'][number]): string {
+  return usage.program?.title ?? usage.application.programId;
+}
+---
+
+<div class="documents">
+  {
+    blocking.length > 0 && (
+      <div class="banner" role="alert">
+        <p>
+          <strong>만료된 서류가 진행 중인 지원건에 연결되어 있습니다.</strong> 재발급 후{' '}
+          <code>issuedAt</code>(또는 <code>validUntil</code>)을 갱신하세요.
+        </p>
+        <ul>
+          {blocking.map((v) => (
+            <li>
+              <b>{v.document.name}</b> →{' '}
+              {v.usedBy
+                .filter((u) => isActiveStatus(u.application.status))
+                .map((u) => `${usageLabel(u)} (${u.application.status})`)
+                .join(', ')}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  {
+    documents.length === 0 && (
+      <p class="empty">
+        등록된 서류가 없습니다. <code>data/documents.json</code>에 서류를 추가하고 지원건의{' '}
+        <code>documentIds</code>로 연결하세요.
+      </p>
+    )
+  }
+
+  <ul class="list">
+    {
+      documents.map((view) => {
+        const { document: doc, expiry, usedBy, blocksActive } = view;
+        const alarming = expiry.state === 'expired' || expiry.state === 'expiring';
+        return (
+          <li class:list={['doc', `expiry-${expiry.state}`, { blocking: blocksActive }]}>
+            <div class="head">
+              <span
+                class:list={['check', { on: doc.ready }]}
+                role="img"
+                aria-label={doc.ready ? '준비 완료' : '미준비'}
+              >
+                {doc.ready ? '✓' : ''}
+              </span>
+              <span class="name">{doc.name}</span>
+              <Badge>{doc.kind}</Badge>
+              <Badge tone={DOC_STATE_TONE[expiry.state]} strong={alarming}>
+                {stateLabel(view)}
+              </Badge>
+              {!doc.ready && <Badge tone="amber">미준비</Badge>}
+            </div>
+
+            <dl class="facts">
+              <dt>유효기한</dt>
+              <dd>
+                {expiry.validUntil && expiry.daysLeft !== null ? (
+                  <span class:list={{ alarm: alarming }}>
+                    <strong>{expiry.validUntil}</strong> ({formatDday(expiry.daysLeft)})
+                  </span>
+                ) : (
+                  <span class="muted">미확인 — issuedAt+validityDays 또는 validUntil을 입력하면 계산됩니다</span>
+                )}
+                {doc.issuedAt && (
+                  <span class="muted">
+                    {' '}
+                    · 발급 {doc.issuedAt}
+                    {doc.validityDays ? ` + ${doc.validityDays}일` : ''}
+                  </span>
+                )}
+              </dd>
+
+              <dt>재사용</dt>
+              <dd>
+                {doc.reusable ? '가능' : <span class="muted">불가 (건별 재발급)</span>}
+                {doc.reuseSource && <span class="source"> — {doc.reuseSource}</span>}
+              </dd>
+
+              <dt>사용처</dt>
+              <dd>
+                {usedBy.length > 0 ? (
+                  <ul class="uses">
+                    {usedBy.map((u) => (
+                      <li class:list={{ inactive: !isActiveStatus(u.application.status) }}>
+                        <span>{usageLabel(u)}</span>
+                        <span class="st">{u.application.status}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span class="muted">연결된 지원건 없음</span>
+                )}
+              </dd>
+            </dl>
+          </li>
+        );
+      })
+    }
+  </ul>
+</div>
+
+<style>
+  .banner {
+    margin-bottom: 0.9rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    background: var(--red-bg);
+    font-size: 0.85rem;
+    color: var(--text);
+  }
+  .banner p {
+    margin: 0;
+  }
+  .banner strong {
+    color: var(--red);
+  }
+  .banner ul {
+    margin: 0.4rem 0 0;
+    padding-left: 1.1rem;
+  }
+
+  .empty {
+    margin: 0 0 0.75rem;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 0.875rem;
+    color: var(--text-2);
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    padding: 0.05em 0.3em;
+    border-radius: 3px;
+    background: var(--surface-2);
+  }
+
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .doc {
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  /* 만료·임박은 테두리로도 튀게 */
+  .expiry-expired {
+    border-color: var(--red);
+  }
+  .expiry-expiring {
+    border-color: var(--orange);
+  }
+
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .check {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border: 1.5px solid var(--text-3);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--bg);
+  }
+  .check.on {
+    background: var(--green);
+    border-color: var(--green);
+  }
+  .name {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.3rem 0.75rem;
+    margin: 0.55rem 0 0;
+    font-size: 0.8125rem;
+  }
+  .facts dt {
+    color: var(--text-3);
+    white-space: nowrap;
+  }
+  .facts dd {
+    margin: 0;
+    color: var(--text-2);
+  }
+  .facts strong {
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .alarm,
+  .alarm strong {
+    color: var(--red);
+  }
+  .expiry-expiring .alarm,
+  .expiry-expiring .alarm strong {
+    color: var(--orange);
+  }
+  .muted {
+    color: var(--text-3);
+  }
+  .source {
+    color: var(--text-2);
+  }
+
+  .uses {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .uses li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.05rem 0.55rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-2);
+    font-size: 0.75rem;
+    color: var(--text);
+  }
+  .uses .st {
+    color: var(--text-3);
+  }
+  .uses .inactive {
+    opacity: 0.6;
+  }
+</style>

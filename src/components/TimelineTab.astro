@@ -1,0 +1,144 @@
+---
+import TimelineItem from './TimelineItem.astro';
+import type { ProgramView } from '../lib/board.ts';
+import { formatMonth, monthKey } from '../lib/format.ts';
+
+interface Props {
+  /** 마감일 오름차순으로 정렬된 공고 목록 (board.ts가 보장). */
+  programs: ProgramView[];
+}
+
+const { programs } = Astro.props;
+
+const open = programs.filter((v) => v.deadline.state !== 'closed');
+// 마감된 공고는 최근에 마감된 것부터 — 접힌 섹션 안에만 있으므로 위 타임라인과 순서가 이어질 필요가 없다.
+const closed = programs.filter((v) => v.deadline.state === 'closed').reverse();
+
+interface MonthGroup {
+  key: string;
+  label: string;
+  items: ProgramView[];
+}
+
+/** applyEnd 기준 월별 묶음. 입력 순서를 보존하므로 정렬은 호출자가 책임진다. */
+function groupByMonth(views: ProgramView[]): MonthGroup[] {
+  const groups = new Map<string, ProgramView[]>();
+  for (const view of views) {
+    const key = monthKey(view.program.applyEnd);
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(view);
+    else groups.set(key, [view]);
+  }
+  return [...groups].map(([key, items]) => ({ key, label: formatMonth(key), items }));
+}
+
+const openGroups = groupByMonth(open);
+const closedGroups = groupByMonth(closed);
+---
+
+<div class="timeline">
+  {
+    open.length === 0 && (
+      <p class="empty">
+        접수 중이거나 예정된 공고가 없습니다. <code>data/programs.json</code>에 공고를 추가하세요.
+      </p>
+    )
+  }
+
+  {
+    openGroups.map((group) => (
+      <section class="month" aria-label={group.label}>
+        <h3 class="month-heading">
+          <span>{group.label}</span>
+          <span class="n">{group.items.length}건</span>
+        </h3>
+        <ol class="items">
+          {group.items.map((view) => (
+            <TimelineItem view={view} />
+          ))}
+        </ol>
+      </section>
+    ))
+  }
+
+  {
+    closed.length > 0 && (
+      <details class="closed">
+        <summary>마감된 공고 {closed.length}건</summary>
+        {closedGroups.map((group) => (
+          <section class="month" aria-label={group.label}>
+            <h3 class="month-heading">
+              <span>{group.label}</span>
+              <span class="n">{group.items.length}건</span>
+            </h3>
+            <ol class="items">
+              {group.items.map((view) => (
+                <TimelineItem view={view} />
+              ))}
+            </ol>
+          </section>
+        ))}
+      </details>
+    )
+  }
+</div>
+
+<style>
+  .month-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin: 1.25rem 0 0.25rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-2);
+  }
+  .month:first-child .month-heading {
+    margin-top: 0.25rem;
+  }
+  .n {
+    font-weight: 500;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .closed {
+    margin-top: 1.5rem;
+  }
+  .closed summary {
+    cursor: pointer;
+    padding: 0.5rem 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .closed summary::marker {
+    color: var(--text-3);
+  }
+
+  .empty {
+    margin: 0.25rem 0 0;
+    padding: 1rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 0.875rem;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    padding: 0.05em 0.3em;
+    border-radius: 3px;
+    background: var(--surface-2);
+  }
+</style>

@@ -1,0 +1,269 @@
+---
+import Badge from './Badge.astro';
+import type { ApplicationStatus, ApplicationView } from '../lib/board.ts';
+import { formatDday, formatShortDate, DEADLINE_TONE } from '../lib/format.ts';
+
+interface Props {
+  status: ApplicationStatus;
+  cards: ApplicationView[];
+}
+
+const { status, cards } = Astro.props;
+
+// 컬럼 안에서는 마감 임박순. 공고 데이터가 없는 카드는 맨 뒤.
+const sorted = [...cards].sort(
+  (a, b) =>
+    (a.deadline?.daysLeft ?? Number.POSITIVE_INFINITY) - (b.deadline?.daysLeft ?? Number.POSITIVE_INFINITY),
+);
+---
+
+<section class="column" aria-label={`${status} ${cards.length}건`}>
+  <h3 class="col-head">
+    <span>{status}</span>
+    <span class="count">{cards.length}</span>
+  </h3>
+
+  {
+    sorted.length === 0 ? (
+      <p class="none">없음</p>
+    ) : (
+      <ul class="cards">
+        {sorted.map(({ application, program, deadline, targetDaysLeft, overdueUnsubmitted, docs }) => {
+          const pct = docs.total === 0 ? 0 : Math.round((docs.ready / docs.total) * 100);
+          return (
+            <li class:list={['card', `priority-${application.priority}`, { overdue: overdueUnsubmitted }]}>
+              <div class="top">
+                {deadline ? (
+                  <span class:list={['dday', `tone-${DEADLINE_TONE[deadline.state]}`]}>
+                    {formatDday(deadline.daysLeft)}
+                  </span>
+                ) : (
+                  <span class="dday missing">공고 없음</span>
+                )}
+                {application.priority === 'high' && (
+                  <Badge tone="red" strong>
+                    HIGH
+                  </Badge>
+                )}
+                {application.priority === 'low' && <Badge tone="gray">low</Badge>}
+              </div>
+
+              {program ? (
+                <a class="title" href={program.sourceUrl} target="_blank" rel="noopener">
+                  {program.title}
+                </a>
+              ) : (
+                <span class="title missing">{application.programId} (공고 데이터 없음)</span>
+              )}
+              {program && (
+                <p class="org">
+                  {program.organizer} · 마감 {formatShortDate(program.applyEnd)}
+                  {program.applyEndTime ? ` ${program.applyEndTime}` : ' (시각 미확인)'}
+                </p>
+              )}
+
+              <div class="meta">
+                <span class="owner" title="담당">
+                  {application.owner}
+                </span>
+                {application.targetSubmitDate && (
+                  <span class:list={['target', { overdue: overdueUnsubmitted }]}>
+                    내부 {formatShortDate(application.targetSubmitDate)}
+                    {targetDaysLeft !== null ? ` ${formatDday(targetDaysLeft)}` : ''}
+                  </span>
+                )}
+                {application.submittedAt && (
+                  <span class="submitted">제출 {formatShortDate(application.submittedAt)}</span>
+                )}
+              </div>
+
+              {docs.total > 0 ? (
+                <div class="docs" title={`서류 ${docs.ready}/${docs.total} 준비`}>
+                  <span class="docs-label">
+                    서류 {docs.ready}/{docs.total}
+                  </span>
+                  <span class="bar" aria-hidden="true">
+                    <span class:list={['fill', { partial: pct < 100 }]} style={`width:${pct}%`} />
+                  </span>
+                </div>
+              ) : (
+                <div class="docs docs-none">연결된 서류 없음</div>
+              )}
+
+              {overdueUnsubmitted && <p class="alert">내부 마감 지남 · 미제출</p>}
+            </li>
+          );
+        })}
+      </ul>
+    )
+  }
+</section>
+
+<style>
+  .column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .col-head {
+    display: flex;
+    justify-content: space-between;
+    margin: 0;
+    padding: 0.1rem 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .count {
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .none {
+    margin: 0.5rem 0.25rem;
+    font-size: 0.8rem;
+    color: var(--text-3);
+  }
+
+  .cards {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.6rem 0.65rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-left-width: 3px;
+    border-radius: var(--radius-sm);
+  }
+  /* priority high만 왼쪽 띠로 구분. mid/low는 색 없음. */
+  .priority-high {
+    border-left-color: var(--red);
+  }
+  .card.overdue {
+    border-color: var(--red);
+  }
+
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .dday {
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .tone-red {
+    color: var(--red);
+  }
+  .tone-orange {
+    color: var(--orange);
+  }
+  .tone-blue {
+    color: var(--blue);
+  }
+  .tone-gray {
+    color: var(--gray);
+    text-decoration: line-through;
+  }
+  .dday.missing {
+    font-size: 0.85rem;
+    color: var(--text-3);
+  }
+
+  .title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .title:hover {
+    text-decoration: underline;
+  }
+  .title.missing {
+    color: var(--text-3);
+  }
+  .org {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--text-3);
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+    color: var(--text-2);
+  }
+  .owner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.45rem;
+    border-radius: 999px;
+    background: var(--gray-bg);
+    color: var(--text);
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .target.overdue {
+    color: var(--red);
+    font-weight: 600;
+  }
+  .submitted {
+    color: var(--text-3);
+  }
+
+  .docs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .docs-none {
+    color: var(--text-3);
+  }
+  .bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+    overflow: hidden;
+  }
+  .fill {
+    display: block;
+    height: 100%;
+    background: var(--green);
+  }
+  .fill.partial {
+    background: var(--amber);
+  }
+
+  .alert {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--red);
+  }
+</style>

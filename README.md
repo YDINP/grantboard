@@ -42,6 +42,44 @@ Layer(`src/content.config.ts`)의 zod 스키마로, `team-profile.json`은 단�
 - 날짜 계산은 전부 `src/lib/schedule.ts`의 KST 헬퍼를 재사용합니다. **타임존 처리를 다른 파일에
   새로 만들지 마세요.**
 
+## 자동 수집 (K-Startup)
+
+`data/programs.json`의 `source: 'k-startup'` 항목은 GitHub Actions가 매일 공공데이터포털의
+K-Startup Open API를 호출해 자동으로 채웁니다(`.github/workflows/collect.yml`).
+**`source: 'manual'` 항목은 자동수집이 절대 덮어쓰거나 삭제하지 않습니다.**
+
+- `src/lib/collect.ts` — 순수 함수(`normalizeAnnouncement`, `mergePrograms`). 네트워크 접근 없음.
+- `scripts/collect.mjs` — 실제 API 호출 + 파일 쓰기. 네트워크 코드는 여기에만 있습니다.
+
+### 서비스키 발급
+
+1. [data.go.kr](https://www.data.go.kr)에 로그인 → 데이터셋 **"K-Startup 사업공고정보"(15125364)**
+   검색 → **활용신청**.
+2. 승인 후 마이페이지 > 오픈API > 활용신청 현황에서 **서비스키(디코딩 인증키)** 확인.
+3. ⚠️ **이 키를 코드, 커밋, 이슈, PR에 절대 넣지 마세요.** 이 레포는 public입니다.
+
+### GitHub Secrets 등록
+
+레포 **Settings → Secrets and variables → Actions → New repository secret**에서
+이름 `DATA_GO_KR_KEY`, 값에 발급받은 서비스키를 등록하세요. 워크플로우는 이 시크릿만 읽고,
+로그에 키가 찍히지 않도록 마스킹합니다.
+
+### 로컬에서 dry-run
+
+```bash
+DATA_GO_KR_KEY=발급받은키 node scripts/collect.mjs --dry-run
+```
+
+`--dry-run`은 API를 호출하고 결과를 요약만 출력할 뿐 `data/programs.json`을 쓰지 않습니다.
+`DATA_GO_KR_KEY`가 없으면 조용히 넘어가지 않고 바로 에러로 종료합니다:
+
+```bash
+node scripts/collect.mjs --dry-run
+# [collect] 오류: DATA_GO_KR_KEY 환경변수가 설정되지 않았습니다. ...
+```
+
+실제로 파일을 갱신하려면 `--dry-run`을 빼고 실행하세요.
+
 ## 로컬 실행
 
 ```bash

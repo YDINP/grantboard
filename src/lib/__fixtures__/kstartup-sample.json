@@ -1,0 +1,42 @@
+{
+  "_comment": "공공데이터포털 표준 응답 envelope(response.header/body.items.item)을 흉내낸 픽스처. ⚠️ 실제 K-Startup API 응답의 정확한 형태/필드 키명은 미확인 — 실호출로 검증 필요. item[0]/[1]은 collect.ts의 후보 키 목록(camelCase/snake_case)과 일치하도록, item[2]는 필수 필드(공고명)가 누락된 불량 응답을 흉내내도록 구성했다.",
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "totalCount": 3,
+      "pageNo": 1,
+      "numOfRows": 100,
+      "items": {
+        "item": [
+          {
+            "pbancSn": "174821",
+            "bizPbancNm": "2026년 예비창업패키지 청년창업사관학교 모집공고",
+            "pbancNtrpNm": "중소벤처기업부",
+            "detlPgUrl": "https://www.k-startup.go.kr/homepage/announcement/174821",
+            "pbancRcptBgngDt": "20260901",
+            "pbancRcptEndDt": "20261020",
+            "pbancRcptEndTm": "16:00",
+            "pbancDt": "20260815",
+            "sportScale": "최대 1억원"
+          },
+          {
+            "pbanc_sn": "174900",
+            "biz_pbanc_nm": "2026 창업도약패키지 2차 모집",
+            "sprv_inst": "창업진흥원",
+            "pblanc_url": "https://www.k-startup.go.kr/homepage/announcement/174900",
+            "pbanc_rcpt_bgng_dt": "2026.09.10",
+            "pbanc_rcpt_end_dt": "2026.10.15"
+          },
+          {
+            "pbancSn": "174955",
+            "pbancRcptEndDt": "20261101",
+            "pbancNtrpNm": "필수 필드(공고명)가 빠진 불량 응답 - 정규화 시 버려져야 함"
+          }
+        ]
+      }
+    }
+  }
+}

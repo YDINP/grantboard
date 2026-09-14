@@ -1,0 +1,61 @@
+name: Collect K-Startup Announcements
+
+on:
+  schedule:
+    # 매일 KST 08:00(UTC 전날 23:00)에 실행. cron은 UTC 기준이다.
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-kstartup
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run collector
+        env:
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+        # ::add-mask::로 서비스키를 로그 마스킹 대상에 명시적으로 등록한다.
+        # (수집 스크립트 자체도 URL 로그에 키를 남기지 않지만, 이중 안전장치)
+        run: |
+          echo "::add-mask::$DATA_GO_KR_KEY"
+          node scripts/collect.mjs
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet -- data/programs.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate collected data against schema
+        if: steps.diff.outputs.changed == 'true'
+        run: npm run build
+
+      - name: Commit and push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/programs.json
+          git commit -m "chore(data): K-Startup 공고 자동수집 갱신 ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          git push
