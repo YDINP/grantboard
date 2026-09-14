@@ -52,11 +52,11 @@ Layer(`src/content.config.ts`)의 zod 스키마로, `team-profile.json`은 단�
 `data/programs.json`의 `source: 'k-startup'` / `source: 'bizinfo'` 항목은 GitHub Actions가 매일
 공공데이터포털의 K-Startup Open API와 기업마당(bizinfo.go.kr) Open API를 호출해 자동으로
 채웁니다(`.github/workflows/collect.yml`).
+**`source: 'manual'` 항목은 자동수집이 절대 덮어쓰거나 삭제하지 않습니다.**
 
 기업마당은 K-Startup에 없는 지자체·타부처 공고를 보강하는 **2차 소스**입니다.
 `BIZINFO_CRTFC_KEY`가 설정되지 않은 레포에서는 기업마당 수집만 건너뛰고 K-Startup 수집은
 정상 진행합니다 — 워크플로가 실패하지 않습니다.
-**`source: 'manual'` 항목은 자동수집이 절대 덮어쓰거나 삭제하지 않습니다.**
 
 - `src/lib/collect.ts` — 순수 함수(`normalizeAnnouncement`, `mergePrograms`). 네트워크 접근 없음.
 - `scripts/collect.mjs` — 실제 API 호출 + 파일 쓰기. 네트워크 코드는 여기에만 있습니다.
