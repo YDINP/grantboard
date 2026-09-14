@@ -1,0 +1,36 @@
+[
+  {
+    "id": "doc-plan",
+    "name": "사업계획서",
+    "kind": "서식",
+    "reusable": true,
+    "reuseSource": "GovTech 공모전 제출본(2026-09) 기반 — PSST 구조가 같아 문제/솔루션 절은 거의 그대로 재사용",
+    "ready": true
+  },
+  {
+    "id": "doc-id-copy",
+    "name": "대표자 신분증 사본",
+    "kind": "증빙",
+    "reusable": true,
+    "validUntil": "2027-03-31",
+    "ready": true
+  },
+  {
+    "id": "doc-employment-cert",
+    "name": "팀원 재직증명",
+    "kind": "증빙",
+    "reusable": false,
+    "issuedAt": "2026-06-20",
+    "validityDays": 90,
+    "ready": true
+  },
+  {
+    "id": "doc-biz-cert",
+    "name": "사업자등록증명원",
+    "kind": "증빙",
+    "reusable": true,
+    "issuedAt": "2026-05-01",
+    "validityDays": 90,
+    "ready": false
+  }
+]

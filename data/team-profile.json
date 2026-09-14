@@ -1,0 +1,6 @@
+{
+  "_comment": "⚠️ 이 레포는 public입니다. 실명·주민등록번호·상세주소·연락처·계좌 등 개인정보를 이 파일에 절대 넣지 마세요. 자격요건 자동판정에 꼭 필요한 최소 정보(등록 여부, 설립일, 출생연도, 시도 단위 지역)만 적습니다. 이 _comment 키는 스키마에서 무시됩니다.",
+  "hasBusinessRegistration": false,
+  "founderBirthYear": 1994,
+  "region": "서울"
+}
