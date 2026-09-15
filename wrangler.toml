@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "grantboard"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "8b0939b8-fda3-4cc6-afa2-f424d4e50afc"
 migrations_dir = "migrations"
 
 # Cron은 UTC로만 지정할 수 있다. 우리 기준 시각은 KST(UTC+9, DST 없음)이므로
