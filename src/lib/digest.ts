@@ -10,6 +10,7 @@
 import {
   buildBoard,
   isActiveStatus,
+  isPreSubmitStatus,
   type BoardInput,
   type ApplicationView,
   type ProgramView,
@@ -70,8 +71,20 @@ export function selectDigestSections(
 ): DigestSections | null {
   const board = buildBoard({ programs, applications, documents, profile, today });
 
-  // 1) 오늘 마감 / 3일 이내 마감 — deadlineState의 'urgent' 정의(마감까지 3일 이내, 당일 포함)를 그대로 쓴다.
-  const deadlineSoon: ProgramView[] = board.programs.filter((v) => v.deadline.state === 'urgent');
+  // 1) 오늘 마감 / 3일 이내 마감 — deadlineState의 'urgent' 정의(마감까지 3일 이내, 당일 포함)에 더해
+  //    "아직 마감 전에 할 일이 남았는지"까지 본다. 마감만 보고 걸러내면, 이미 제출완료/서류통과/
+  //    최종선정/탈락인 공고까지 매일 D-day/D-1로 뜨면서 실제로는 할 일이 없는데 @here까지 울리게
+  //    된다(shouldMentionHere는 이 배열만 본다). isActiveStatus(ACTIVE_STATUSES)는 제출완료/
+  //    서류통과까지 "진행 중"으로 치는 더 넓은 판정이라(docAlerts엔 맞지만) 여기선 안 맞는다 —
+  //    대신 isPreSubmitStatus(PRE_SUBMIT_STATUSES: 검토중/준비/작성중)로 좁힌다.
+  //    지원건이 아예 없는 공고는 유지한다 — "지원할지 아직 안 정했다"는 것 자체가 마감 전에
+  //    결정해야 할 일이라 가장 놓치기 쉬운 경고이기 때문이다. 지원건이 여럿이면 하나라도
+  //    제출 전 단계면 유지한다.
+  const deadlineSoon: ProgramView[] = board.programs.filter((v) => {
+    if (v.deadline.state !== 'urgent') return false;
+    if (v.applications.length === 0) return true;
+    return v.applications.some((a) => isPreSubmitStatus(a.application.status));
+  });
 
   // 2) 내부 마감(targetSubmitDate)이 지났는데 아직 미제출 — 가장 실질적인 경고.
   const overdueUnsubmitted: ApplicationView[] = board.applications

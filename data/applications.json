@@ -32,11 +32,11 @@
   {
     "id": "app-modu-startup-2026-2nd",
     "programId": "modu-startup-2026-2nd",
-    "status": "검토중",
+    "status": "제출완료",
     "owner": "에이든",
     "priority": "high",
-    "targetSubmitDate": "2026-09-16",
     "documentIds": [],
-    "note": "⚠️ 마감 2026-09-17 16:00. 비수도권 70% 선발 목표라 서울은 쿼터상 불리. 1차 지원 이력이 있다면 중복 지원 가능 여부 확인 필요."
+    "note": "신청 등록 완료. 1R 창업활동자금 → 2R MVP 제작비 → FINAL 단계 진행. 결과발표일 미확인.",
+    "submittedAt": "2026-09-16"
   }
 ]

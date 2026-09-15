@@ -26,14 +26,24 @@ export const ACTIVE_STATUSES = [
 /** 결과 계열. 칸반에서 접힌 섹션으로 분리한다. */
 export const RESULT_STATUSES = ['최종선정', '탈락', '미지원'] as const satisfies readonly ApplicationStatus[];
 
-/** 아직 제출하지 않은 단계. 내부 마감 초과 경고는 이 단계에서만 의미가 있다. */
-const PRE_SUBMIT_STATUSES: readonly ApplicationStatus[] = ['검토중', '준비', '작성중'];
+/**
+ * 아직 제출하지 않은 단계. 내부 마감 초과 경고(overdueUnsubmitted)가 이 단계에서만 의미가 있는 것과
+ * 같은 이유로, 다이제스트의 "마감 임박, 아직 할 일이 남은 공고"(src/lib/digest.ts의 deadlineSoon)도
+ * 이 상태를 기준으로 판정한다 — isActiveStatus(ACTIVE_STATUSES)는 제출완료/서류통과까지 포함해서
+ * "더 할 일이 없는데 마감이 임박했다고 알리는" 오탐을 만든다. export해서 digest.ts가 재사용한다.
+ */
+export const PRE_SUBMIT_STATUSES = ['검토중', '준비', '작성중'] as const satisfies readonly ApplicationStatus[];
 
 /** 발표 예정일 경과 판정에서 '결과가 나온' 것으로 보는 상태. 미지원은 발표일과 무관하므로 제외한다. */
 const ANNOUNCED_RESULT_STATUSES: readonly ApplicationStatus[] = ['최종선정', '탈락'];
 
 export function isActiveStatus(status: ApplicationStatus): boolean {
   return (ACTIVE_STATUSES as readonly ApplicationStatus[]).includes(status);
+}
+
+/** 제출 전 단계(PRE_SUBMIT_STATUSES)인지 — "아직 마감 전에 할 일이 남았는지" 판정에 쓴다. */
+export function isPreSubmitStatus(status: ApplicationStatus): boolean {
+  return (PRE_SUBMIT_STATUSES as readonly ApplicationStatus[]).includes(status);
 }
 
 export interface Deadline {
