@@ -40,5 +40,25 @@
       "doc-biz-cert"
     ],
     "note": "사업자등록증명원 재발급 필요 — 만료됨"
+  },
+  {
+    "id": "app-wanted-ai-2026",
+    "programId": "wanted-ai-championship-2026",
+    "status": "검토중",
+    "owner": "미정",
+    "priority": "high",
+    "documentIds": [],
+    "note": "⚠️ 담당자·진행상태 미확인 — 팀 확인 후 수정할 것. 신청 마감 9/18, 과제 제출 9/20."
+  },
+  {
+    "id": "app-ilsang-flip-2026",
+    "programId": "ilsang-flip-2026",
+    "status": "최종선정",
+    "owner": "미정",
+    "priority": "mid",
+    "submittedAt": "2026-08-22",
+    "resultAt": "2026-08-29",
+    "documentIds": [],
+    "note": "페이퍼닥 우수상 수상 (10팀 중 1팀, 상금 30만원). 담당자 미확인."
   }
 ]

@@ -71,5 +71,48 @@
       "maxFounderAge": 39,
       "note": "중복지원 제한: 창업사업화 지원사업 기수혜자는 제외될 수 있습니다. 공고문의 '지원 제외 대상' 항목을 직접 확인할 것."
     }
+  },
+  {
+    "id": "wanted-ai-championship-2026",
+    "title": "원티드 AI 챔피언십 2026",
+    "organizer": "원티드랩 (메인 파트너: 크래프톤)",
+    "sourceUrl": "https://event.wanted.co.kr/ai-championship/2026",
+    "category": "공모전",
+    "applyStart": "2026-08-24",
+    "applyEnd": "2026-09-18",
+    "announceDate": "2026-10-07",
+    "supportAmount": "총 1,700만원 (대상 1,000 / 최우수 300 / 우수 3팀 각 100 / 인기상 100)",
+    "tags": [
+      "AI",
+      "해커톤",
+      "데모데이"
+    ],
+    "source": "manual",
+    "eligibility": {
+      "businessRegistration": "무관",
+      "note": "만 19세 이상 대학(원)생·일반인, 개인 또는 최대 5인 팀, 주제 제한 없음. 신청 마감 9/18 이후 과제 제출은 9/20까지. 예선 심사 9/21~10/5(온라인 투표 포함), 데모데이·시상식 10/17 오프라인."
+    }
+  },
+  {
+    "id": "ilsang-flip-2026",
+    "title": "제1회 일상뒤집기 AI 어플 개발 공모전",
+    "organizer": "나무서원 (주관: 홈그라운드)",
+    "sourceUrl": "https://www.wevity.com/index.php?c=find&cidx=39&gbn=viewok&gp=1&gub=3&ix=108046&s=1",
+    "category": "공모전",
+    "applyStart": "2026-06-01",
+    "applyEnd": "2026-08-22",
+    "applyEndTime": "23:59",
+    "announceDate": "2026-08-29",
+    "supportAmount": "총 1,000만원 / 33팀 (우수상 10팀 각 30만원)",
+    "tags": [
+      "AI",
+      "수상"
+    ],
+    "source": "manual",
+    "eligibility": {
+      "businessRegistration": "무관",
+      "maxFounderAge": 39,
+      "note": "만 39세 이하 청년, 개인 또는 최대 4인 팀. 시상식 현장 참석 필수 — 온라인 참석은 수상 취소 사유."
+    }
   }
 ]
