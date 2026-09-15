@@ -3,50 +3,30 @@
     "id": "app-govtech-2026",
     "programId": "govtech-2026",
     "status": "제출완료",
-    "owner": "K",
+    "owner": "에이든",
     "priority": "high",
-    "targetSubmitDate": "2026-09-28",
-    "submittedAt": "2026-09-05",
-    "documentIds": [
-      "doc-plan",
-      "doc-id-copy"
-    ],
-    "note": "접수증 수령 확인. 발표일까지 추가 제출 요구 없음"
-  },
-  {
-    "id": "app-pre-startup-2026",
-    "programId": "pre-startup-2026",
-    "status": "작성중",
-    "owner": "K",
-    "priority": "high",
-    "targetSubmitDate": "2026-10-18",
-    "documentIds": [
-      "doc-plan",
-      "doc-id-copy",
-      "doc-biz-cert"
-    ],
-    "note": "사업자등록증명원 재발급 필요 — 만료됨"
+    "documentIds": [],
+    "note": "신청 완료. ⚠️ 실제 제출일 미확인. 마감 시각도 공고 원문에 명시 없음 — 확인 필요."
   },
   {
     "id": "app-wanted-ai-2026",
     "programId": "wanted-ai-championship-2026",
     "status": "작성중",
-    "owner": "미정",
+    "owner": "에이든",
     "priority": "high",
     "documentIds": [],
-    "note": "신청 등록 완료. 남은 마감은 과제 제출 2026-09-20 — 내부 마감을 하루 앞선 9/19로 잡음(마감 당일 접속 폭주 대비). 담당자 미확인.",
-    "submittedAt": "2026-09-15",
+    "note": "신청 등록 완료. 남은 마감은 과제 제출 2026-09-20 — 내부 마감을 9/19로 잡음(마감 당일 접속 폭주 대비).",
     "targetSubmitDate": "2026-09-19"
   },
   {
     "id": "app-ilsang-flip-2026",
     "programId": "ilsang-flip-2026",
     "status": "최종선정",
-    "owner": "미정",
+    "owner": "에이든",
     "priority": "mid",
     "submittedAt": "2026-08-22",
     "resultAt": "2026-08-29",
     "documentIds": [],
-    "note": "페이퍼닥 우수상 수상 (10팀 중 1팀, 상금 30만원). 담당자 미확인."
+    "note": "페이퍼닥 우수상 수상 (10팀 중 1팀, 상금 30만원). 시상식 현장 참석 필수 조항 있었음."
   }
 ]
