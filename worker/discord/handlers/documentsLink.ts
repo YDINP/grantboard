@@ -9,6 +9,7 @@
 import { loadBoardModel } from '../loadBoard.ts';
 import { listDocuments, listApplications, upsertApplication } from '../../db/repo.ts';
 import { editOriginalResponse } from '../discordApi.ts';
+import { syncStatusBoard } from '../statusBoard.ts';
 import { deferredMessageResponse, deferredUpdateResponse } from '../responses.ts';
 import { buildEmbed, emptyStateLine } from '../embeds.ts';
 import { documentSelectOptions, applicationSelectOptions } from '../selectOptions.ts';
@@ -154,6 +155,7 @@ async function applyLinkToggle(
       embeds: [buildEmbed(`✅ ${action}됨`, `**${document.name}** ↔ 지원건(${application.programId})`, 'green')],
       components: [],
     });
+    await syncStatusBoard(env);
   } catch (err) {
     console.error('/서류 연결 3단계 실패', err instanceof Error ? err.message : String(err));
     await editOriginalResponse(env.DISCORD_APPLICATION_ID, interaction.token, {

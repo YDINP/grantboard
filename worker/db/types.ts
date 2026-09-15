@@ -16,8 +16,15 @@
 export type ProgramCategory = '정부지원사업' | '공모전' | '경진대회' | '교육프로그램' | '기타';
 export type ProgramSource = 'manual' | 'k-startup' | 'bizinfo';
 
-/** 자동판정(eligibility.ts)이 쓰는 하드 필터. 기계가 판단 못 하는 조건은 전부 note로 간다. */
-export interface ProgramEligibility {
+/**
+ * 자동판정(eligibility.ts)이 쓰는 하드 필터. 기계가 판단 못 하는 조건은 전부 note로 간다.
+ *
+ * interface가 아니라 type 별칭인 데는 이유가 있다: src/lib/collect.ts의 ProgramRecord가
+ * `eligibility?: Record<string, unknown>`을 받는데, **interface에는 암묵적 인덱스 시그니처가 없어서**
+ * Record<string, unknown>에 대입되지 않는다(type 별칭은 된다). interface로 되돌리면
+ * worker/cron/collect.ts가 Program[]을 ProgramRecord[]로 넘기는 지점이 전부 깨진다.
+ */
+export type ProgramEligibility = {
   /** '불가' = 사업자등록 미보유자만 지원 가능. '필요' = 있어야 함. '무관' = 조건 없음. */
   businessRegistration?: '불가' | '필요' | '무관';
   maxBusinessAgeMonths?: number;
@@ -26,7 +33,7 @@ export interface ProgramEligibility {
   regions?: string[];
   /** 이 값이 있으면 판정은 'needs-check'로 승격된다 — 기계가 임의로 떨어뜨리지 않는다. */
   note?: string;
-}
+};
 
 export interface Program {
   id: string;

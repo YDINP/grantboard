@@ -8,6 +8,7 @@
 import { loadBoardModel } from '../loadBoard.ts';
 import { getProgram, deleteProgram } from '../../db/repo.ts';
 import { editOriginalResponse } from '../discordApi.ts';
+import { syncStatusBoard } from '../statusBoard.ts';
 import { deferredMessageResponse, deferredUpdateResponse, updateMessageResponse } from '../responses.ts';
 import { buildEmbed, emptyStateLine } from '../embeds.ts';
 import { programSelectOptions } from '../selectOptions.ts';
@@ -156,6 +157,7 @@ async function executeDelete(interaction: DiscordInteraction, env: Env, programI
       ],
       components: [],
     });
+    await syncStatusBoard(env);
   } catch (err) {
     console.error('/공고 삭제 3단계 실패', err instanceof Error ? err.message : String(err));
     await editOriginalResponse(env.DISCORD_APPLICATION_ID, interaction.token, {

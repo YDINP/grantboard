@@ -14,6 +14,7 @@ import { ComponentType, TextInputStyle } from '../types.ts';
 import type { DiscordInteraction } from '../types.ts';
 import type { Document } from '../../../src/lib/board.ts';
 import { upsertDocument } from '../../db/repo.ts';
+import { syncStatusBoard } from '../statusBoard.ts';
 
 const MODAL_ID = encodeCustomId('documents', 'add-submit');
 
@@ -99,6 +100,7 @@ async function saveNewDocument(interaction: DiscordInteraction, env: Env): Promi
     await editOriginalResponse(env.DISCORD_APPLICATION_ID, interaction.token, {
       embeds: [buildEmbed('✅ 서류 등록됨', `**${document.name}** · ${document.kind}`, 'green')],
     });
+    await syncStatusBoard(env);
   } catch (err) {
     console.error('/서류 추가 저장 실패', err instanceof Error ? err.message : String(err));
     await editOriginalResponse(env.DISCORD_APPLICATION_ID, interaction.token, {

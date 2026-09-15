@@ -57,6 +57,7 @@ export const COMMAND_NAMES = {
   MY_DEADLINES: '내마감',
   CALENDAR: '달력',
   ME: '나는',
+  STATUS_BOARD: '현황',
 } as const;
 
 export const PROGRAM_SUBCOMMANDS = { ADD: '추가', LIST: '목록', DELETE: '삭제' } as const;
@@ -177,5 +178,10 @@ export const COMMAND_DEFINITIONS = [
         max_length: OWNER_MAX_LENGTH,
       },
     ],
+  },
+  {
+    name: COMMAND_NAMES.STATUS_BOARD,
+    type: ApplicationCommandType.CHAT_INPUT,
+    description: '현황판을 지금 바로 갱신하고 위치를 알려줍니다 (평소엔 자동 갱신됩니다)',
   },
 ] as const;

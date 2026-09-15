@@ -736,3 +736,46 @@ export async function deleteDocument(db: D1Database, id: string): Promise<{ deta
 
   return { detachedFrom };
 }
+
+// ---------------------------------------------------------------------------
+// 봇 상태 (bot_state) — 범용 키-값
+// ---------------------------------------------------------------------------
+
+/**
+ * value는 **불투명한 문자열**로 다룬다. 파싱하지 않고 그대로 넘긴다.
+ * 용도마다 모양이 다르므로(현황판은 JSON, 다음 용도는 아닐 수도 있다) repo가 구조를 알면
+ * 새 용도가 생길 때마다 repo를 고쳐야 한다. 해석은 호출자 몫이다.
+ *
+ * 등록된 적 없는 키면 null. 현황판이라면 "아직 안 만들었으니 새로 올려라"로 읽으면 된다.
+ */
+export async function getBotState(db: D1Database, key: string): Promise<string | null> {
+  const row = await db
+    .prepare('SELECT value FROM bot_state WHERE key = ?')
+    .bind(key)
+    .first<{ value: string }>();
+  return row ? row.value : null;
+}
+
+/** 같은 키로 다시 부르면 덮어쓴다. */
+export async function setBotState(db: D1Database, key: string, value: string): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO bot_state (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`,
+    )
+    // 감사용 타임스탬프. 날짜 '판정'이 아니므로 UTC ISO로 둔다.
+    .bind(key, value, new Date().toISOString())
+    .run();
+}
+
+/**
+ * 없는 키를 지워도 조용히 성공한다 — deleteProgram/deleteDocument와 의도적으로 다르다.
+ * 저건 사용자가 쌓은 데이터를 없애는 일이라 "없었다"를 알려줘야 하지만,
+ * 이건 "이 기억을 잊어라"라서 이미 잊은 상태도 원하는 결과다. 호출자가 try/catch를 두를 필요가 없다.
+ */
+export async function deleteBotState(db: D1Database, key: string): Promise<void> {
+  await db.prepare('DELETE FROM bot_state WHERE key = ?').bind(key).run();
+}

@@ -7,6 +7,7 @@
 import { loadBoardModel } from '../loadBoard.ts';
 import { listDocuments, upsertDocument } from '../../db/repo.ts';
 import { editOriginalResponse } from '../discordApi.ts';
+import { syncStatusBoard } from '../statusBoard.ts';
 import { deferredMessageResponse, deferredUpdateResponse } from '../responses.ts';
 import { buildEmbed, emptyStateLine } from '../embeds.ts';
 import { documentSelectOptions } from '../selectOptions.ts';
@@ -92,6 +93,7 @@ async function applyToggle(interaction: DiscordInteraction, env: Env, documentId
       ],
       components: [],
     });
+    await syncStatusBoard(env);
   } catch (err) {
     console.error('/서류 완료 2단계 실패', err instanceof Error ? err.message : String(err));
     await editOriginalResponse(env.DISCORD_APPLICATION_ID, interaction.token, {

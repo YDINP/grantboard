@@ -20,6 +20,7 @@ import type { DiscordInteraction, DiscordCommandOption } from '../types.ts';
 import type { Program, ProgramView } from '../../../src/lib/board.ts';
 import type { DeadlineState } from '../../../src/lib/schedule.ts';
 import { upsertProgram } from '../../db/repo.ts';
+import { syncStatusBoard } from '../statusBoard.ts';
 
 const PAGE_SIZE = 8;
 const MODAL_ID = encodeCustomId('programs', 'add-submit');
@@ -101,6 +102,8 @@ async function saveNewProgram(interaction: DiscordInteraction, env: Env): Promis
     await editOriginalResponse(env.DISCORD_APPLICATION_ID, interaction.token, {
       embeds: [buildEmbed('✅ 공고 추가됨', `**${program.title}**\n마감 ${program.applyEnd} · ${program.organizer}`, 'green')],
     });
+    // 응답은 이미 보냈다 — 현황판 갱신은 그 뒤에 이어서 하고, 실패해도 위 응답에 영향 없다(syncStatusBoard 내부에서 삼킴).
+    await syncStatusBoard(env);
   } catch (err) {
     console.error('/공고 추가 저장 실패', err instanceof Error ? err.message : String(err));
     await editOriginalResponse(env.DISCORD_APPLICATION_ID, interaction.token, {

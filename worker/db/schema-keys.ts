@@ -126,11 +126,19 @@ export function zodVariableFields(source: string, variableName: string): SchemaF
   return extractFields(clean, brace);
 }
 
-/** `export interface Name { ... }`의 필드. */
+/**
+ * `export interface Name { ... }` 또는 `export type Name = { ... }`의 필드.
+ * 두 형태를 다 받는 이유: ProgramEligibility는 Record<string, unknown>에 대입돼야 해서
+ * type 별칭이다(worker/db/types.ts의 주석 참고). 선언 형태가 바뀌었다고 가드가 눈감으면 안 된다.
+ */
 export function interfaceFields(source: string, interfaceName: string): SchemaField[] {
   const clean = stripComments(source);
-  const brace = openBraceAfter(clean, `export interface ${interfaceName} {`, '{');
-  return extractFields(clean, brace);
+  const candidates = [`export interface ${interfaceName} {`, `export type ${interfaceName} = {`];
+  const marker = candidates.find((candidate) => clean.includes(candidate));
+  if (!marker) {
+    throw new Error(`소스에서 '${interfaceName}'의 interface/type 선언을 찾지 못했습니다.`);
+  }
+  return extractFields(clean, openBraceAfter(clean, marker, '{'));
 }
 
 const SQL_COLUMN_LINE = /^\s*([a-z_][a-z0-9_]*)\s+(TEXT|INTEGER|REAL|BLOB|NUMERIC)\b/i;

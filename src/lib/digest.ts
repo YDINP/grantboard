@@ -7,7 +7,14 @@
  * 새로 짜지 않는다 — 짜는 순간 KST 로직이 두 벌이 되어 반드시 어긋난다.
  */
 
-import { buildBoard, isActiveStatus, type BoardInput, type ApplicationView, type ProgramView } from './board.ts';
+import {
+  buildBoard,
+  isActiveStatus,
+  type BoardInput,
+  type ApplicationView,
+  type ProgramView,
+  type DocumentView,
+} from './board.ts';
 import { daysUntil, kstDateParts } from './schedule.ts';
 
 export type DigestInput = BoardInput;

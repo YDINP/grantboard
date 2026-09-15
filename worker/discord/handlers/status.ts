@@ -14,6 +14,7 @@ import { buildEmbed, emptyStateLine } from '../embeds.ts';
 import { encodeCustomId, decodeCustomId } from '../customId.ts';
 import { STATUS_CHOICES } from '../commands.ts';
 import { applicationSelectOptions } from '../selectOptions.ts';
+import { syncStatusBoard } from '../statusBoard.ts';
 import { ComponentType } from '../types.ts';
 import type { DiscordInteraction } from '../types.ts';
 import type { Application } from '../../../src/lib/board.ts';
@@ -125,6 +126,7 @@ async function applyStatusChange(
       embeds: [buildEmbed('✅ 상태 변경됨', `${application.status} → **${newStatus}**`, 'green')],
       components: [],
     });
+    await syncStatusBoard(env);
   } catch (err) {
     console.error('/상태 변경 3단계 실패', err instanceof Error ? err.message : String(err));
     await editOriginalResponse(env.DISCORD_APPLICATION_ID, interaction.token, {
