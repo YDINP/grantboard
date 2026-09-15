@@ -4,3 +4,17 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Cloudflare Workers 로컬 시크릿 — 절대 커밋 금지
+.dev.vars
+.dev.vars.*
+.wrangler/
+
+# 시크릿 — 경로가 깨져 생긴 변종까지 포괄해서 차단
+# (역슬래시가 먹혀 'parkYD_Claude_RNDgrantboard.dev.vars' 같은 파일이 실제로 생긴 적 있음)
+*.dev.vars
+*dev.vars*
+*.env
+*secret*
+*token*
+!.env.example

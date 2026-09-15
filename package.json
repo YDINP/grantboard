@@ -9,14 +9,23 @@
     "build": "astro check && astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "test": "node --test src/lib/*.test.ts"
+    "test": "node --test \"src/lib/*.test.ts\" \"worker/**/*.test.ts\"",
+    "test:lib": "node --test \"src/lib/*.test.ts\"",
+    "test:db": "node --test worker/db/*.test.ts",
+    "dev:worker": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck:worker": "tsc -p worker/tsconfig.json --noEmit",
+    "d1:migrate": "wrangler d1 migrations apply grantboard",
+    "seed": "node scripts/seed-d1.mjs"
   },
   "dependencies": {
     "astro": "^7.3.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@cloudflare/workers-types": "^5.20260915.1",
     "@types/node": "^26.5.1",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^4.131.2"
   }
 }

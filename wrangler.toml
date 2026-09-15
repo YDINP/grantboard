@@ -1,0 +1,27 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "grantboard"
+main = "worker/index.ts"
+compatibility_date = "2026-09-15"
+compatibility_flags = ["nodejs_compat"]
+
+# D1. database_id는 `npx wrangler d1 create grantboard` 후 출력값으로 교체할 것.
+# 로컬(`--local`)은 이 id를 상태 디렉터리 키로만 쓰므로 placeholder여도 동작한다.
+[[d1_databases]]
+binding = "DB"
+database_name = "grantboard"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Cron은 UTC로만 지정할 수 있다. 우리 기준 시각은 KST(UTC+9, DST 없음)이므로
+# KST에서 9시간을 빼면 전날 UTC가 된다. 실제 날짜 판정은 src/lib/schedule.ts가 KST로 한다.
+[triggers]
+crons = [
+  "0 23 * * *",  # UTC 23:00 = KST 08:00 (익일) — K-Startup 공고 수집
+  "30 23 * * *", # UTC 23:30 = KST 08:30 (익일) — D-day 다이제스트 발송
+]
+
+[observability]
+enabled = true
+
+[vars]
+# 시크릿(DISCORD_*, *_KEY)은 vars가 아니라 `wrangler secret put` / 로컬은 .dev.vars로 넣는다.

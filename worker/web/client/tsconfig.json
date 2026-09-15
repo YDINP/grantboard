@@ -1,0 +1,18 @@
+{
+  "//": "브라우저 스크립트(main.mts) 전용 타입체크. DOM lib이 필요해서 worker/tsconfig.json(workers-types, DOM 없음)과 분리한다 — 둘을 섞으면 fetch/Request 전역이 서로를 덮어쓴다. 실행: npx tsc -p worker/web/client/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": [],
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "//files": "astro-content-shim: filters.ts → board.ts가 타입만 'astro:content'에서 가져오므로 worker/db의 shim을 같이 읽는다(수정 아님).",
+  "files": ["main.mts", "../../db/astro-content-shim.d.ts"]
+}

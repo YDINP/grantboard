@@ -1,0 +1,18 @@
+{
+  "//": "Worker 전용 타입체크. 루트 tsconfig(astro check)는 worker/를 제외한다 — Astro의 DOM 타입과 Workers 런타임 타입이 섞이면 서로를 덮어쓴다. strict 수위는 루트(astro/tsconfigs/strict)와 맞춘다: worker 쪽만 더 조이면 공유 코드인 src/lib이 여기서만 에러를 뿜는다.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["@cloudflare/workers-types", "node"],
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}
