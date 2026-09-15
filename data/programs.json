@@ -1,8 +1,8 @@
 [
   {
     "id": "govtech-2026",
-    "title": "GovTech 공모전",
-    "organizer": "행정안전부",
+    "title": "[샘플] GovTech 공모전",
+    "organizer": "(샘플 — 실제 아님)",
     "sourceUrl": "#",
     "category": "공모전",
     "applyStart": "2026-08-01",
@@ -10,35 +10,49 @@
     "applyEndTime": "18:00",
     "announceDate": "2026-10-15",
     "supportAmount": "최대 500만원",
-    "tags": ["공공데이터", "해커톤"],
+    "tags": [
+      "샘플데이터",
+      "공공데이터",
+      "해커톤"
+    ],
     "source": "manual",
     "eligibility": {
       "businessRegistration": "무관",
-      "regions": ["서울", "경기", "인천"]
+      "regions": [
+        "서울",
+        "경기",
+        "인천"
+      ]
     }
   },
   {
     "id": "mock-startup-2026",
-    "title": "모의창업 프로그램",
-    "organizer": "청년창업사관학교",
+    "title": "[샘플] 모의창업 프로그램",
+    "organizer": "(샘플 — 실제 아님)",
     "sourceUrl": "#",
     "category": "교육프로그램",
     "applyStart": "2026-07-15",
     "applyEnd": "2026-08-31",
     "announceDate": "2026-09-10",
     "supportAmount": "교육비 전액 지원",
-    "tags": ["예비창업", "교육"],
+    "tags": [
+      "샘플데이터",
+      "예비창업",
+      "교육"
+    ],
     "source": "manual",
     "eligibility": {
       "businessRegistration": "무관",
       "maxFounderAge": 39,
-      "regions": ["경기"]
+      "regions": [
+        "경기"
+      ]
     }
   },
   {
     "id": "pre-startup-2026",
-    "title": "예비창업패키지",
-    "organizer": "중소벤처기업부",
+    "title": "[샘플] 예비창업패키지",
+    "organizer": "(샘플 — 실제 아님)",
     "sourceUrl": "#",
     "category": "정부지원사업",
     "applyStart": "2026-09-01",
@@ -46,7 +60,11 @@
     "applyEndTime": "16:00",
     "announceDate": "2026-11-30",
     "supportAmount": "최대 1억원",
-    "tags": ["예비창업", "사업화자금"],
+    "tags": [
+      "샘플데이터",
+      "예비창업",
+      "사업화자금"
+    ],
     "source": "manual",
     "eligibility": {
       "businessRegistration": "불가",
