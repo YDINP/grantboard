@@ -15,6 +15,10 @@ const nearestTone: Tone = nearest ? DEADLINE_TONE[nearest.deadline.state] : 'qui
 ---
 
 <section class="summary" aria-label="오늘 요약">
+  <!-- 일정 탭 필터가 걸려도 이 수치는 전체 기준이다 — 필터로 경고가 줄어 보이면 위험을 놓친다. FilterBar 스크립트가 토글. -->
+  <p class="filter-note" data-filter-note hidden>
+    일정 탭에 필터가 걸려 있습니다 — 이 요약은 <strong>전체</strong> 기준입니다.
+  </p>
   <div class:list={['stat', `tone-${nearestTone}`]}>
     <span class="label">가장 임박한 마감</span>
     <span class="value">{nearest ? formatDday(nearest.deadline.daysLeft) : '—'}</span>
@@ -48,6 +52,20 @@ const nearestTone: Tone = nearest ? DEADLINE_TONE[nearest.deadline.state] : 'qui
     .summary {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
+  }
+
+  .filter-note {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 0.3rem 0.6rem;
+    border-left: 3px solid var(--amber);
+    border-radius: var(--radius-sm);
+    background: var(--amber-bg);
+    font-size: 0.75rem;
+    color: var(--text-2);
+  }
+  .filter-note strong {
+    color: var(--text);
   }
 
   .stat {

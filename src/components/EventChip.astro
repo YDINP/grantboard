@@ -1,0 +1,184 @@
+---
+/**
+ * 달력 날짜 칸 위의 이벤트 한 개. 넓은 화면에서는 텍스트 칩, 좁은 화면(≤640px)에서는 CSS만으로 점(dot)이 된다.
+ * 클릭하면 CalendarView 스크립트가 그날의 상세 패널을 연다.
+ */
+import type { CalendarEvent } from '../lib/board.ts';
+import { DEADLINE_TONE, EVENT_KIND_LABEL, formatDday, type Tone } from '../lib/format.ts';
+import { eventFilterAttrs, serializeAttrs } from '../lib/filters.ts';
+
+interface Props {
+  event: CalendarEvent;
+}
+
+const { event } = Astro.props;
+const { kind, program, application } = event;
+const title = program.program.title;
+
+// 종류별 색. 마감 칩만 deadlineState 색을 그대로 따르고, 나머지는 종류를 구분하는 고정 톤이다.
+function chipTone(): Tone {
+  switch (kind) {
+    case 'apply-end':
+      return DEADLINE_TONE[program.deadline.state];
+    case 'target':
+      if (event.stale) return 'gray';
+      return application?.overdueUnsubmitted ? 'red' : 'neutral';
+    case 'announce':
+      return event.daysLeft < 0 ? 'gray' : 'blue';
+    case 'apply-start':
+      return 'quiet';
+  }
+}
+
+const tone = chipTone();
+const past = event.daysLeft < 0;
+const dim = program.eligibility.verdict === 'ineligible';
+const owner = application ? ` (${application.application.owner})` : '';
+const label = `${EVENT_KIND_LABEL[kind]}${owner} · ${title} · ${formatDday(event.daysLeft)}`;
+---
+
+<button
+  type="button"
+  {...serializeAttrs(eventFilterAttrs(event))}
+  data-event={event.key}
+  data-date={event.date}
+  class:list={['chip', `kind-${kind}`, `tone-${tone}`, { past, dim, stale: event.stale }]}
+  title={label}
+  aria-label={label}
+>
+  <span class="text" aria-hidden="true">{title}</span>
+</button>
+
+<style>
+  .chip {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0.05rem 0.35rem;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    text-align: left;
+    cursor: pointer;
+  }
+  .text {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  /* 종류 표시. 마감(가장 강함)은 접두어 없이 채운 칩 자체로 말한다. */
+  .kind-target .text::before {
+    content: '내부 ';
+    font-weight: 700;
+  }
+  .kind-announce .text::before {
+    content: '발표 ';
+    font-weight: 700;
+  }
+  .kind-apply-start .text::before {
+    content: '시작 ';
+  }
+
+  /* 접수 마감: 채운 칩. 색은 deadlineState. */
+  .kind-apply-end {
+    font-weight: 700;
+    color: #101216;
+    background: var(--text);
+  }
+  .kind-apply-end.tone-red {
+    background: var(--red);
+  }
+  .kind-apply-end.tone-orange {
+    background: var(--orange);
+  }
+  .kind-apply-end.tone-blue {
+    background: var(--blue);
+  }
+  .kind-apply-end.tone-gray {
+    background: var(--gray);
+    text-decoration: line-through;
+  }
+
+  /* 내부 마감: 테두리 칩. 지났는데 미제출이면 빨강. */
+  .kind-target {
+    border-color: var(--text-2);
+    color: var(--text);
+  }
+  .kind-target.tone-red {
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .kind-target.tone-gray {
+    border-color: var(--line);
+    color: var(--text-3);
+    text-decoration: line-through;
+  }
+
+  /* 발표 예정: 연한 파랑 배경. 지난 발표일은 회색. */
+  .kind-announce {
+    background: var(--blue-bg);
+    color: var(--blue);
+  }
+  .kind-announce.tone-gray {
+    background: var(--gray-bg);
+    color: var(--text-3);
+  }
+
+  /* 접수 시작: 가장 약하게, 텍스트만. */
+  .kind-apply-start {
+    color: var(--text-3);
+  }
+
+  .chip:hover,
+  .chip:focus-visible {
+    filter: brightness(1.15);
+  }
+
+  /* 지원 불가 판정은 흐리게만 — 판정이 틀릴 수 있으니 숨기지 않는다. */
+  .dim {
+    opacity: 0.45;
+  }
+  .dim:hover,
+  .dim:focus-visible {
+    opacity: 1;
+  }
+
+  /* 좁은 화면: 칩 → 점. 종류는 모양(원/링/사각/작은 점)과 색으로 구분한다. */
+  @media (max-width: 640px) {
+    .chip {
+      width: 7px;
+      height: 7px;
+      padding: 0;
+      border-radius: 50%;
+      border-width: 1.5px;
+      font-size: 0;
+      line-height: 0;
+      text-decoration: none;
+      pointer-events: none;
+    }
+    .text {
+      display: none;
+    }
+    .kind-target {
+      background: transparent;
+    }
+    .kind-announce {
+      border-radius: 1px;
+      background: var(--blue);
+    }
+    .kind-announce.tone-gray {
+      background: var(--gray);
+    }
+    .kind-apply-start {
+      width: 5px;
+      height: 5px;
+      background: var(--text-3);
+    }
+  }
+</style>

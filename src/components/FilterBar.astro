@@ -1,0 +1,404 @@
+---
+/**
+ * 일정 탭 필터. 선택지는 데이터에 실제로 있는 값만(collectFacets). 매칭은 lib/filters.ts의 순수 함수를
+ * 클라이언트에서 그대로 import해 [data-filterable] 요소의 hidden을 토글한다 — 캘린더 칩·상세 항목·
+ * 타임라인 항목이 전부 같은 규칙으로 걸러진다. 선택 상태는 localStorage(try/catch)에 기억한다.
+ */
+import { NO_APPLICATION, NO_APPLICATION_LABEL, type FilterFacets } from '../lib/filters.ts';
+import { VERDICT_LABEL } from '../lib/format.ts';
+
+interface Props {
+  facets: FilterFacets;
+  /** 공고 전체 건수. "N건 표시 중 (전체 M건)"의 M. */
+  total: number;
+}
+
+const { facets, total } = Astro.props;
+
+interface Group {
+  name: 'category' | 'status' | 'owner' | 'verdict';
+  legend: string;
+  options: { value: string; label: string }[];
+}
+
+// 값이 하나도 없는 항목은 그리지 않는다 — 빈 선택지는 사용자를 헷갈리게만 한다.
+const allGroups: Group[] = [
+  { name: 'category', legend: '카테고리', options: facets.categories.map((v) => ({ value: v, label: v })) },
+  {
+    name: 'status',
+    legend: '진행 상태',
+    options: facets.statuses.map((v) => ({ value: v, label: v === NO_APPLICATION ? NO_APPLICATION_LABEL : v })),
+  },
+  { name: 'owner', legend: '담당자', options: facets.owners.map((v) => ({ value: v, label: v })) },
+  { name: 'verdict', legend: '자격 판정', options: facets.verdicts.map((v) => ({ value: v, label: VERDICT_LABEL[v] })) },
+];
+const groups = allGroups.filter((g) => g.options.length > 0);
+---
+
+<div class="filter" data-filter-bar data-total={total}>
+  <div class="bar">
+    <details class="panel" data-filter-panel>
+      <summary>
+        <span class="sum-label">필터</span>
+        <span class="sum-badge" data-filter-badge hidden>0</span>
+        <span class="sum-status" data-filter-status aria-live="polite">전체 {total}건 표시 중</span>
+      </summary>
+
+      <form class="groups" data-filter-form>
+        {
+          groups.map((group) => (
+            <fieldset>
+              <legend>{group.legend}</legend>
+              <div class="options">
+                {group.options.map((option) => (
+                  <label class="opt">
+                    <input type="checkbox" name={group.name} value={option.value} />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))
+        }
+        {
+          facets.hasClosed && (
+            <fieldset class="toggle-set">
+              <legend>표시</legend>
+              <label class="opt toggle">
+                <input type="checkbox" name="hideClosed" checked />
+                <span>마감된 공고 숨기기</span>
+              </label>
+            </fieldset>
+          )
+        }
+      </form>
+    </details>
+
+    <button type="button" class="clear" data-filter-clear hidden>필터 해제</button>
+  </div>
+</div>
+
+<script>
+  import {
+    countSelections,
+    DEFAULT_FILTER,
+    isFilterActive,
+    matchesFilter,
+    parseFilterState,
+    readAttrs,
+    type FilterFacets,
+    type FilterState,
+  } from '../lib/filters.ts';
+
+  const STORAGE_KEY = 'grantboard.filters';
+  const OPEN_KEY = 'grantboard.filterOpen';
+
+  const barEl = document.querySelector<HTMLElement>('[data-filter-bar]');
+  if (barEl) {
+    const bar = barEl;
+    const form = bar.querySelector<HTMLFormElement>('[data-filter-form]');
+    const panel = bar.querySelector<HTMLDetailsElement>('[data-filter-panel]');
+    const status = bar.querySelector<HTMLElement>('[data-filter-status]');
+    const badge = bar.querySelector<HTMLElement>('[data-filter-badge]');
+    const clearBtn = bar.querySelector<HTMLButtonElement>('[data-filter-clear]');
+    const total = Number(bar.dataset.total) || 0;
+
+    // 필터 대상은 일정 탭 패널 안의 [data-filterable] 전부(칩·상세 항목·타임라인 항목).
+    const scope = bar.closest<HTMLElement>('[data-filter-scope]') ?? document.body;
+    const items = Array.from(scope.querySelectorAll<HTMLElement>('[data-filterable]'));
+    const programs = items.filter((el) => el.dataset.role === 'program');
+    const autoHide = Array.from(scope.querySelectorAll<HTMLElement>('[data-auto-hide]'));
+    const emptyNotes = Array.from(scope.querySelectorAll<HTMLElement>('[data-filter-empty]'));
+    const summaryNote = document.querySelector<HTMLElement>('[data-filter-note]');
+
+    const inputs = form ? Array.from(form.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) : [];
+    const valuesOf = (name: string) => inputs.filter((i) => i.name === name).map((i) => i.value);
+    // 선택지는 DOM에 그려진 것이 곧 데이터에 있는 값이다 — 저장된 상태를 검증할 때 이걸 기준으로 쓴다.
+    const facets: FilterFacets = {
+      categories: valuesOf('category'),
+      statuses: valuesOf('status'),
+      owners: valuesOf('owner'),
+      verdicts: valuesOf('verdict') as FilterFacets['verdicts'],
+      hasClosed: inputs.some((i) => i.name === 'hideClosed'),
+    };
+
+    function readForm(): FilterState {
+      const picked = (name: string) => inputs.filter((i) => i.name === name && i.checked).map((i) => i.value);
+      const hide = inputs.find((i) => i.name === 'hideClosed');
+      return {
+        category: picked('category'),
+        status: picked('status'),
+        owner: picked('owner'),
+        verdict: picked('verdict') as FilterState['verdict'],
+        hideClosed: hide ? hide.checked : DEFAULT_FILTER.hideClosed,
+      };
+    }
+
+    function writeForm(state: FilterState): void {
+      for (const input of inputs) {
+        if (input.name === 'hideClosed') input.checked = state.hideClosed;
+        else input.checked = (state[input.name as keyof Omit<FilterState, 'hideClosed'>] as string[]).includes(input.value);
+      }
+    }
+
+    function apply(state: FilterState): void {
+      for (const el of items) {
+        el.hidden = !matchesFilter(readAttrs(el.dataset), state);
+      }
+      for (const box of autoHide) {
+        const visible = box.querySelectorAll('[data-filterable]:not([hidden])').length;
+        box.hidden = visible === 0;
+        const countEl = box.querySelector<HTMLElement>('[data-visible-count]');
+        if (countEl) countEl.textContent = String(visible);
+      }
+
+      const shown = programs.filter((el) => !el.hidden).length;
+      const active = isFilterActive(state);
+      // 마감 숨김(기본값)으로만 빠진 건수 — "왜 3건인데 2건만 보이지"를 설명한다.
+      const hiddenClosed = state.hideClosed
+        ? programs.filter((el) => {
+            const attrs = readAttrs(el.dataset);
+            return attrs.closed && matchesFilter(attrs, { ...state, hideClosed: false });
+          }).length
+        : 0;
+
+      if (status) {
+        const note = hiddenClosed > 0 ? ` · 마감 ${hiddenClosed}건 숨김` : '';
+        if (total === 0) status.textContent = '등록된 공고 없음';
+        else if (shown === 0) status.textContent = `필터에 걸리는 항목이 없습니다 (전체 ${total}건${note})`;
+        else if (shown === total) status.textContent = `전체 ${total}건 표시 중`;
+        else status.textContent = `${shown}건 표시 중 (전체 ${total}건${note})`;
+      }
+      bar.classList.toggle('active', active);
+      bar.classList.toggle('none', total > 0 && shown === 0);
+      if (badge) {
+        const n = countSelections(state);
+        badge.hidden = n === 0;
+        badge.textContent = String(n);
+      }
+      if (clearBtn) clearBtn.hidden = !active;
+      for (const note of emptyNotes) note.hidden = !(total > 0 && shown === 0);
+      if (summaryNote) summaryNote.hidden = !active;
+
+      document.dispatchEvent(new CustomEvent('grantboard:filterchange', { detail: state }));
+    }
+
+    function recall(): FilterState {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return parseFilterState(raw ? JSON.parse(raw) : null, facets);
+      } catch {
+        return { ...DEFAULT_FILTER };
+      }
+    }
+
+    function remember(state: FilterState): void {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch {
+        // 저장이 막혀도 필터 자체는 동작한다.
+      }
+    }
+
+    const initial = recall();
+    writeForm(initial);
+    apply(initial);
+
+    form?.addEventListener('change', () => {
+      const state = readForm();
+      apply(state);
+      remember(state);
+    });
+
+    clearBtn?.addEventListener('click', () => {
+      const state = { ...DEFAULT_FILTER };
+      writeForm(state);
+      apply(state);
+      remember(state);
+    });
+
+    // 패널 펼침 상태도 기억한다 — 매일 여는 도구라 매번 다시 펼치게 하면 귀찮다.
+    if (panel) {
+      try {
+        if (localStorage.getItem(OPEN_KEY) === '1') panel.open = true;
+      } catch {
+        // 기본(접힘)으로 둔다.
+      }
+      panel.addEventListener('toggle', () => {
+        try {
+          localStorage.setItem(OPEN_KEY, panel.open ? '1' : '0');
+        } catch {
+          // 무시
+        }
+      });
+    }
+  }
+</script>
+
+<style>
+  .filter {
+    margin-bottom: 0.75rem;
+  }
+  .bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .panel {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .active .panel {
+    border-color: var(--amber);
+  }
+  .none .panel {
+    border-color: var(--orange);
+  }
+
+  summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.6rem;
+    min-height: 44px;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.8rem;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary::before {
+    content: '▸';
+    color: var(--text-3);
+    font-size: 0.8rem;
+  }
+  .panel[open] summary::before {
+    content: '▾';
+  }
+  .sum-label {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .sum-badge {
+    min-width: 1.4em;
+    padding: 0 0.4em;
+    border-radius: 999px;
+    background: var(--amber);
+    color: #101216;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .sum-status {
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .active .sum-status {
+    color: var(--amber);
+    font-weight: 600;
+  }
+  .none .sum-status {
+    color: var(--orange);
+    font-weight: 600;
+  }
+
+  .groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.25rem;
+    padding: 0.25rem 0.75rem 0.75rem;
+    border-top: 1px solid var(--line);
+  }
+  fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  legend {
+    padding: 0.45rem 0 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-3);
+  }
+  .options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .opt {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0.15rem 0.65rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+  }
+  .opt input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .opt:hover {
+    color: var(--text);
+  }
+  .opt:has(input:checked) {
+    border-color: var(--amber);
+    background: var(--amber-bg);
+    color: var(--text);
+  }
+  .opt:has(input:focus-visible) {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+  .toggle {
+    border-radius: var(--radius-sm);
+  }
+  .toggle::before {
+    content: '';
+    width: 0.8em;
+    height: 0.8em;
+    margin-right: 0.4em;
+    border: 1.5px solid var(--text-3);
+    border-radius: 3px;
+  }
+  .toggle:has(input:checked)::before {
+    background: var(--amber);
+    border-color: var(--amber);
+  }
+
+  .clear {
+    flex-shrink: 0;
+    min-height: 44px;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--amber);
+    border-radius: var(--radius);
+    background: var(--amber-bg);
+    color: var(--amber);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .clear:hover {
+    background: var(--amber);
+    color: #101216;
+  }
+</style>

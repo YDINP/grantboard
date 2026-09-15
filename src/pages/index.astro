@@ -2,7 +2,7 @@
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SummaryBar from '../components/SummaryBar.astro';
-import TimelineTab from '../components/TimelineTab.astro';
+import ScheduleTab from '../components/ScheduleTab.astro';
 import KanbanTab from '../components/KanbanTab.astro';
 import DocumentsTab from '../components/DocumentsTab.astro';
 import { buildBoard } from '../lib/board.ts';
@@ -68,7 +68,7 @@ const tabs = [
     </nav>
 
     <section id="panel-timeline" role="tabpanel" aria-labelledby="tab-timeline" data-panel="timeline">
-      <TimelineTab programs={board.programs} />
+      <ScheduleTab board={board} today={today} />
     </section>
     <section id="panel-kanban" role="tabpanel" aria-labelledby="tab-kanban" data-panel="kanban" hidden>
       <KanbanTab applications={board.applications} />

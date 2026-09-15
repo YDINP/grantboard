@@ -1,0 +1,576 @@
+---
+/**
+ * 월 캘린더. 필요한 달을 전부 빌드 시 렌더해 두고(hidden) 스크립트는 보여줄 달만 고른다 —
+ * 브라우저에서 날짜 계산을 한 줄도 하지 않기 위해서다(KST 단일 소스 원칙).
+ * 오늘 표시는 빌드 시각 기준이며 매일 KST 00:00·09:00에 재빌드된다.
+ */
+import EventChip from './EventChip.astro';
+import DayDetail from './DayDetail.astro';
+import type { CalendarEvent } from '../lib/board.ts';
+import { WEEKDAY_LABELS, type MonthGrid } from '../lib/calendar.ts';
+
+interface Props {
+  months: MonthGrid[];
+  eventsByDate: Map<string, CalendarEvent[]>;
+  /** 오늘이 속한 달 'YYYY-MM'. months 안에 반드시 있다(calendar.ts monthSpan이 보장). */
+  todayKey: string;
+  totalPrograms: number;
+}
+
+const { months, eventsByDate, todayKey, totalPrograms } = Astro.props;
+const initial = months.find((m) => m.key === todayKey) ?? months[0];
+const eventDates = [...eventsByDate.keys()].sort();
+
+/** 넓은 화면에서 한 칸에 바로 보이는 칩 수. 넘치면 "+N". 스크립트도 같은 값을 쓴다(data-max-visible). */
+const MAX_VISIBLE = 3;
+---
+
+<div class="calendar" data-calendar data-today-month={todayKey} data-max-visible={MAX_VISIBLE}>
+  <div class="cal-nav">
+    <button type="button" class="nav-btn" data-cal-prev aria-label="이전 달">‹</button>
+    <h3 class="cal-title" aria-live="polite">
+      <span data-cal-label>{initial.label}</span>
+      <span class="cal-count" data-cal-count></span>
+    </h3>
+    <button type="button" class="nav-btn" data-cal-next aria-label="다음 달">›</button>
+    <button type="button" class="today-btn" data-cal-today>오늘로</button>
+  </div>
+
+  <ul class="legend" aria-label="이벤트 종류">
+    <li><span class="swatch end"></span>접수 마감</li>
+    <li><span class="swatch target"></span>내부 마감</li>
+    <li><span class="swatch announce"></span>발표 예정</li>
+    <li><span class="swatch start"></span>접수 시작</li>
+  </ul>
+
+  {
+    totalPrograms === 0 && (
+      <p class="empty">
+        등록된 공고가 없습니다. <code>data/programs.json</code>에 공고를 추가하면 마감·발표 일정이 달력에 올라옵니다.
+      </p>
+    )
+  }
+  <p class="empty" data-filter-empty hidden>
+    필터에 걸리는 일정이 없습니다 (전체 {totalPrograms}건). 위의 <strong>필터 해제</strong>를 누르면 모두 보입니다.
+  </p>
+
+  <div class="weekdays" aria-hidden="true">
+    {WEEKDAY_LABELS.map((label, i) => <span class:list={['wd', { sun: i === 0, sat: i === 6 }]}>{label}</span>)}
+  </div>
+
+  {
+    months.map((grid) => (
+      <section
+        class="month"
+        data-month={grid.key}
+        data-label={grid.label}
+        aria-label={grid.label}
+        hidden={grid.key !== initial.key}
+      >
+        <div class="grid" role="grid" aria-label={grid.label}>
+          {grid.weeks.map((week) => (
+            <div class="week" role="row">
+              {week.map((cell) => {
+                // 앞뒤 달 채움 칸에는 칩을 올리지 않는다 — 같은 이벤트가 두 달에 겹쳐 보이고 집계도 꼬인다.
+                const events = cell.inMonth ? (eventsByDate.get(cell.date) ?? []) : [];
+                return (
+                  <div
+                    role="gridcell"
+                    class:list={[
+                      'cell',
+                      { out: !cell.inMonth, today: cell.isToday, sun: cell.weekday === 0, sat: cell.weekday === 6 },
+                    ]}
+                    data-cell={cell.inMonth ? cell.date : undefined}
+                  >
+                    <button
+                      type="button"
+                      class="day"
+                      data-date={cell.date}
+                      data-day-button
+                      aria-label={`${cell.date}${cell.isToday ? ' 오늘' : ''}${events.length ? ` 일정 ${events.length}건` : ''}`}
+                      aria-current={cell.isToday ? 'date' : undefined}
+                      tabindex={cell.inMonth ? 0 : -1}
+                    >
+                      {cell.day}
+                    </button>
+                    {events.length > 0 && (
+                      <div class="chips">
+                        {events.map((event) => (
+                          <EventChip event={event} />
+                        ))}
+                      </div>
+                    )}
+                    <button type="button" class="more" data-date={cell.date} data-day-button hidden>
+                      +0
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </section>
+    ))
+  }
+
+  <div class="details" data-day-details>
+    {eventDates.map((date) => <DayDetail date={date} events={eventsByDate.get(date) ?? []} />)}
+    <section class="day-empty" data-day-empty hidden>
+      <p><strong data-day-empty-date></strong> — 이 날짜에는 일정이 없습니다.</p>
+      <button type="button" class="close" data-day-close>닫기</button>
+    </section>
+  </div>
+</div>
+
+<script>
+  // 달 전환·날짜 상세·"+N" 접기. 날짜 계산은 하지 않는다 — 서버가 만든 data 속성만 읽는다.
+  const root = document.querySelector<HTMLElement>('[data-calendar]');
+  if (root) {
+    const months = Array.from(root.querySelectorAll<HTMLElement>('[data-month]'));
+    const label = root.querySelector<HTMLElement>('[data-cal-label]');
+    const count = root.querySelector<HTMLElement>('[data-cal-count]');
+    const prev = root.querySelector<HTMLButtonElement>('[data-cal-prev]');
+    const next = root.querySelector<HTMLButtonElement>('[data-cal-next]');
+    const todayBtn = root.querySelector<HTMLButtonElement>('[data-cal-today]');
+    const todayKey = root.dataset.todayMonth ?? '';
+    const maxVisible = Number(root.dataset.maxVisible) || 3;
+
+    let index = Math.max(
+      0,
+      months.findIndex((m) => m.dataset.month === todayKey),
+    );
+
+    function showMonth(i: number): void {
+      index = Math.min(Math.max(i, 0), months.length - 1);
+      months.forEach((m, j) => (m.hidden = j !== index));
+      const current = months[index];
+      if (label && current) label.textContent = current.dataset.label ?? '';
+      if (prev) prev.disabled = index === 0;
+      if (next) next.disabled = index === months.length - 1;
+      if (todayBtn) todayBtn.disabled = current?.dataset.month === todayKey;
+      updateMonthCount();
+    }
+
+    /** 필터 결과에 맞춰 칸마다 보이는 칩을 maxVisible개로 자르고 "+N"을 갱신한다. 이번 달 집계도 여기서. */
+    function layoutCells(): void {
+      for (const cell of root!.querySelectorAll<HTMLElement>('[data-cell]')) {
+        const chips = Array.from(cell.querySelectorAll<HTMLElement>('.chip'));
+        const visible = chips.filter((c) => !c.hidden);
+        visible.forEach((c, i) => c.classList.toggle('overflow', i >= maxVisible));
+        const more = cell.querySelector<HTMLButtonElement>('.more');
+        if (more) {
+          const extra = Math.max(visible.length - maxVisible, 0);
+          more.hidden = extra === 0;
+          more.textContent = `+${extra}`;
+          more.setAttribute('aria-label', `${cell.dataset.cell} 일정 ${extra}건 더 보기`);
+        }
+      }
+      updateMonthCount();
+    }
+
+    function updateMonthCount(): void {
+      const current = months[index];
+      if (!count || !current) return;
+      const chips = Array.from(current.querySelectorAll<HTMLElement>('.chip'));
+      const shown = chips.filter((c) => !c.hidden).length;
+      const hidden = chips.length - shown;
+      count.textContent = hidden > 0 ? `일정 ${shown}건 · 필터로 ${hidden}건 숨김` : `일정 ${shown}건`;
+    }
+
+    // ── 날짜 상세 패널 ──
+    const details = root.querySelector<HTMLElement>('[data-day-details]');
+    const days = Array.from(root.querySelectorAll<HTMLElement>('[data-day]'));
+    const emptyPanel = root.querySelector<HTMLElement>('[data-day-empty]');
+    const emptyDate = root.querySelector<HTMLElement>('[data-day-empty-date]');
+    let selectedDate: string | null = null;
+
+    function openDay(date: string): void {
+      selectedDate = date;
+      let target: HTMLElement | null = null;
+      for (const day of days) {
+        const match = day.dataset.day === date;
+        day.hidden = !match;
+        if (match) target = day;
+      }
+      if (emptyPanel) emptyPanel.hidden = target !== null;
+      if (!target && emptyDate) emptyDate.textContent = date;
+      if (target) refreshDayFilterNote(target);
+      for (const btn of root!.querySelectorAll<HTMLElement>('[data-day-button]')) {
+        btn.setAttribute('aria-pressed', String(btn.dataset.date === date));
+      }
+      for (const cell of root!.querySelectorAll<HTMLElement>('[data-cell]')) {
+        cell.classList.toggle('selected', cell.dataset.cell === date);
+      }
+      details?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function closeDay(): void {
+      selectedDate = null;
+      for (const day of days) day.hidden = true;
+      if (emptyPanel) emptyPanel.hidden = true;
+      for (const btn of root!.querySelectorAll<HTMLElement>('[data-day-button]')) {
+        btn.setAttribute('aria-pressed', 'false');
+      }
+      for (const cell of root!.querySelectorAll<HTMLElement>('[data-cell]')) cell.classList.remove('selected');
+    }
+
+    /** 상세 패널 안에서 필터로 가려진 항목 수를 알려 준다 — "일정이 없다"로 오해하지 않게. */
+    function refreshDayFilterNote(day: HTMLElement): void {
+      const entries = Array.from(day.querySelectorAll<HTMLElement>('.entry'));
+      const hidden = entries.filter((e) => e.hidden).length;
+      const note = day.querySelector<HTMLElement>('[data-day-filtered]');
+      const hiddenCount = day.querySelector<HTMLElement>('[data-day-hidden-count]');
+      const visibleCount = day.querySelector<HTMLElement>('[data-visible-count]');
+      if (note) note.hidden = hidden === 0;
+      if (hiddenCount) hiddenCount.textContent = String(hidden);
+      if (visibleCount) visibleCount.textContent = String(entries.length - hidden);
+    }
+
+    root.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      const dayButton = target.closest<HTMLElement>('[data-day-button]');
+      if (dayButton?.dataset.date) {
+        openDay(dayButton.dataset.date);
+        return;
+      }
+      const chip = target.closest<HTMLElement>('.chip');
+      if (chip?.dataset.date) {
+        openDay(chip.dataset.date);
+        return;
+      }
+      if (target.closest('[data-day-close]')) closeDay();
+    });
+
+    prev?.addEventListener('click', () => showMonth(index - 1));
+    next?.addEventListener('click', () => showMonth(index + 1));
+    todayBtn?.addEventListener('click', () => {
+      showMonth(Math.max(0, months.findIndex((m) => m.dataset.month === todayKey)));
+    });
+
+    // FilterBar가 hidden을 바꾼 뒤 알려 주면 "+N"과 집계를 다시 계산한다.
+    document.addEventListener('grantboard:filterchange', () => {
+      layoutCells();
+      if (selectedDate) {
+        const day = days.find((d) => d.dataset.day === selectedDate);
+        if (day) refreshDayFilterNote(day);
+      }
+    });
+
+    showMonth(index);
+    layoutCells();
+  }
+</script>
+
+<style>
+  .calendar {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .cal-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+  .cal-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2rem 0.6rem;
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-count {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-3);
+  }
+  .nav-btn,
+  .today-btn {
+    min-width: 44px;
+    min-height: 40px;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .nav-btn {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .today-btn {
+    font-size: 0.8rem;
+  }
+  .nav-btn:hover,
+  .today-btn:hover {
+    background: var(--surface-2);
+  }
+  .nav-btn:disabled,
+  .today-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    list-style: none;
+    margin: 0 0 0.5rem;
+    padding: 0;
+    font-size: 0.72rem;
+    color: var(--text-2);
+  }
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .swatch {
+    display: inline-block;
+    width: 14px;
+    height: 8px;
+    border-radius: 2px;
+  }
+  .swatch.end {
+    background: var(--text);
+  }
+  .swatch.target {
+    border: 1px solid var(--text-2);
+  }
+  .swatch.announce {
+    background: var(--blue-bg);
+    border: 1px solid var(--blue);
+  }
+  .swatch.start {
+    height: 1px;
+    align-self: center;
+    background: var(--text-3);
+  }
+
+  .empty {
+    margin: 0 0 0.6rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 0.85rem;
+    color: var(--text-2);
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    padding: 0.05em 0.3em;
+    border-radius: 3px;
+    background: var(--surface-2);
+  }
+
+  .weekdays,
+  .week {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+  .weekdays {
+    padding: 0 0 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text-3);
+  }
+  .wd.sun {
+    color: var(--red);
+  }
+  .wd.sat {
+    color: var(--blue);
+  }
+
+  .grid {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .week + .week {
+    border-top: 1px solid var(--line);
+  }
+  .cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    min-height: 96px;
+    padding: 0.25rem;
+    overflow: hidden;
+  }
+  .cell + .cell {
+    border-left: 1px solid var(--line);
+  }
+  .cell.out {
+    background: var(--bg);
+  }
+  .cell.selected {
+    background: var(--surface-2);
+  }
+
+  .day {
+    align-self: flex-start;
+    min-width: 26px;
+    min-height: 26px;
+    padding: 0 0.3rem;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .day:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .cell.sun .day {
+    color: var(--red);
+  }
+  .cell.sat .day {
+    color: var(--blue);
+  }
+  .cell.out .day {
+    color: var(--text-3);
+    opacity: 0.55;
+  }
+  /* 오늘: 채운 원 + 칸 테두리. 하루에 몇 번씩 여는 화면이라 무엇보다 먼저 눈에 들어와야 한다. */
+  .cell.today {
+    box-shadow: inset 0 0 0 2px var(--text);
+  }
+  .cell.today .day {
+    background: var(--text);
+    color: #101216;
+  }
+  .cell.today.out {
+    box-shadow: inset 0 0 0 2px var(--text-3);
+  }
+
+  .chips {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  /* "+N" 접기: 넓은 화면에서만. 좁은 화면에서는 점이 작아서 다 보여도 된다. */
+  .more {
+    align-self: flex-start;
+    margin: 0;
+    padding: 0 0.35rem;
+    border: 0;
+    border-radius: 3px;
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .more:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  @media (min-width: 641px) {
+    .chips :global(.chip.overflow) {
+      display: none;
+    }
+  }
+
+  .day-empty {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font-size: 0.85rem;
+    color: var(--text-2);
+  }
+  .day-empty p {
+    margin: 0;
+  }
+  .day-empty strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .close {
+    min-height: 32px;
+    padding: 0.2rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-2);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+
+  /* 좁은 화면: 날짜 버튼이 칸 전체를 덮고(터치 타겟), 칩은 하단에 점으로 깔린다. */
+  @media (max-width: 640px) {
+    .cell {
+      min-height: 56px;
+      padding: 0;
+      gap: 0;
+    }
+    /* 버튼은 내용을 세로 중앙에 두므로 flex로 위쪽에 고정한다 — 아래는 점(dot)이 차지한다. */
+    .day {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      min-height: 100%;
+      padding: 0.25rem 0 0;
+      border-radius: 0;
+      align-self: stretch;
+      text-align: center;
+    }
+    /* 오늘: 숫자 뒤에만 채운 원. 겹침 순서에 의존하지 않도록 배경 그라디언트로 그린다. */
+    .cell.today .day {
+      background: radial-gradient(circle 13px at 50% 14px, var(--text) 99%, transparent 100%);
+      color: #101216;
+    }
+    .cell.today .day:hover {
+      background: radial-gradient(circle 13px at 50% 14px, var(--text) 99%, var(--surface-2) 100%);
+    }
+    .cell.selected {
+      background: var(--surface-2);
+    }
+    .chips {
+      position: absolute;
+      left: 3px;
+      right: 3px;
+      bottom: 4px;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 3px;
+      pointer-events: none;
+    }
+    .more {
+      display: none;
+    }
+  }
+</style>

@@ -1,0 +1,370 @@
+---
+/**
+ * 하루치 일정 상세. 이벤트가 있는 날짜마다 하나씩 빌드 시 렌더해 두고(hidden), CalendarView 스크립트가
+ * 클릭한 날짜의 것만 연다. 모달이 아니라 달력 아래에 펼쳐지는 패널이다 — 모바일에서 다루기 쉽게.
+ */
+import Badge from './Badge.astro';
+import type { CalendarEvent } from '../lib/board.ts';
+import {
+  EVENT_KIND_LABEL,
+  formatDayHeading,
+  formatDday,
+  isLinkable,
+  DEADLINE_TONE,
+  VERDICT_LABEL,
+  VERDICT_TONE,
+  type Tone,
+} from '../lib/format.ts';
+import { eventFilterAttrs, serializeAttrs } from '../lib/filters.ts';
+import { weekdayOf } from '../lib/schedule.ts';
+
+interface Props {
+  date: string;
+  events: CalendarEvent[];
+}
+
+const { date, events } = Astro.props;
+const heading = formatDayHeading(date, weekdayOf(date));
+
+function ddayTone(event: CalendarEvent): Tone {
+  if (event.kind === 'apply-end') return DEADLINE_TONE[event.program.deadline.state];
+  if (event.kind === 'target' && event.application?.overdueUnsubmitted) return 'red';
+  if (event.daysLeft < 0) return 'gray';
+  return event.kind === 'announce' ? 'blue' : 'neutral';
+}
+---
+
+<section class="day" data-day={date} aria-label={`${heading} 일정`} hidden>
+  <header class="day-head">
+    <h4>
+      {heading}
+      <span class="n"><span data-visible-count>{events.length}</span>건</span>
+    </h4>
+    <button type="button" class="close" data-day-close aria-label="상세 닫기">닫기</button>
+  </header>
+
+  <p class="filtered" data-day-filtered hidden>
+    이 날짜의 일정 <span data-day-hidden-count>0</span>건이 필터로 가려져 있습니다.
+  </p>
+
+  <ul class="entries">
+    {
+      events.map((event) => {
+        const { program, deadline, eligibility, applications } = event.program;
+        const app = event.application;
+        return (
+          <li
+            {...serializeAttrs(eventFilterAttrs(event))}
+            data-event={event.key}
+            class:list={['entry', `kind-${event.kind}`, { dim: eligibility.verdict === 'ineligible' }]}
+          >
+            <div class="entry-head">
+              <span class:list={['kind', `kind-${event.kind}`]}>
+                {EVENT_KIND_LABEL[event.kind]}
+                {app && ` · ${app.application.owner}`}
+              </span>
+              <span class:list={['dday', `tone-${ddayTone(event)}`]}>{formatDday(event.daysLeft)}</span>
+              <Badge>{program.category}</Badge>
+            </div>
+
+            <p class="title-row">
+              {isLinkable(program.sourceUrl) ? (
+                <a class="title" href={program.sourceUrl} target="_blank" rel="noopener">
+                  {program.title}
+                </a>
+              ) : (
+                <span class="title no-link">{program.title}</span>
+              )}
+              <span class="org">{program.organizer}</span>
+              {program.supportAmount && <span class="amount">{program.supportAmount}</span>}
+            </p>
+
+            <dl class="facts">
+              <dt>접수 마감</dt>
+              <dd>
+                <strong class:list={{ closed: deadline.state === 'closed' }}>{program.applyEnd}</strong>
+                {program.applyEndTime ? (
+                  <strong>{program.applyEndTime}</strong>
+                ) : (
+                  <Badge tone="orange" strong>
+                    마감 시각 미확인
+                  </Badge>
+                )}
+                <span class="muted">({deadline.state === 'closed' ? '마감됨' : formatDday(deadline.daysLeft)})</span>
+              </dd>
+
+              {event.kind === 'announce' && program.announceDate && (
+                <>
+                  <dt>발표</dt>
+                  <dd>
+                    <strong>{program.announceDate}</strong>
+                    {applications.some((a) => a.announceOverdue) && (
+                      <Badge tone="amber" strong>
+                        발표 예정일 경과
+                      </Badge>
+                    )}
+                  </dd>
+                </>
+              )}
+
+              <dt>자격</dt>
+              <dd>
+                <Badge tone={VERDICT_TONE[eligibility.verdict]} strong={eligibility.verdict === 'ineligible'}>
+                  {VERDICT_LABEL[eligibility.verdict]}
+                </Badge>
+                {eligibility.verdict !== 'eligible' && (
+                  <ul class="reasons">
+                    {eligibility.reasons.map((reason) => (
+                      <li>{reason}</li>
+                    ))}
+                  </ul>
+                )}
+              </dd>
+
+              <dt>지원건</dt>
+              <dd>
+                {applications.length === 0 ? (
+                  <span class="muted">없음</span>
+                ) : (
+                  <ul class="apps">
+                    {applications.map(({ application, targetDaysLeft, overdueUnsubmitted }) => (
+                      <li class:list={{ current: app?.application.id === application.id }}>
+                        <span class="status">{application.status}</span>
+                        <span>· 담당 {application.owner}</span>
+                        {application.targetSubmitDate && (
+                          <span class:list={['internal', { overdue: overdueUnsubmitted }]}>
+                            · 내부 마감 {application.targetSubmitDate}
+                            {targetDaysLeft !== null && ` (${formatDday(targetDaysLeft)})`}
+                            {overdueUnsubmitted && ' — 지났는데 미제출'}
+                          </span>
+                        )}
+                        {application.submittedAt && <span>· 제출 {application.submittedAt}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </dd>
+            </dl>
+          </li>
+        );
+      })
+    }
+  </ul>
+</section>
+
+<style>
+  .day {
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .day-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .day-head h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .n {
+    margin-left: 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .close {
+    min-height: 32px;
+    padding: 0.2rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-2);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .close:hover {
+    color: var(--text);
+  }
+
+  .filtered {
+    margin: 0 0 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    color: var(--text-2);
+  }
+
+  .entries {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .entry {
+    padding: 0.6rem 0;
+  }
+  .entry + .entry {
+    border-top: 1px solid var(--line);
+  }
+  .dim {
+    opacity: 0.55;
+  }
+  .dim:hover,
+  .dim:focus-within {
+    opacity: 1;
+  }
+
+  .entry-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+  }
+  .kind {
+    padding: 0.05rem 0.45rem;
+    border-radius: 3px;
+    font-weight: 700;
+    color: #101216;
+    background: var(--text);
+  }
+  .kind.kind-target {
+    background: none;
+    border: 1px solid var(--text-2);
+    color: var(--text);
+  }
+  .kind.kind-announce {
+    background: var(--blue-bg);
+    color: var(--blue);
+  }
+  .kind.kind-apply-start {
+    background: var(--surface-2);
+    color: var(--text-3);
+  }
+  .dday {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .dday.tone-red {
+    color: var(--red);
+  }
+  .dday.tone-orange {
+    color: var(--orange);
+  }
+  .dday.tone-blue {
+    color: var(--blue);
+  }
+  .dday.tone-gray {
+    color: var(--text-3);
+    text-decoration: line-through;
+  }
+
+  .title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2rem 0.5rem;
+    margin: 0.3rem 0 0;
+  }
+  .title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .title:hover {
+    text-decoration: underline;
+  }
+  .title::after {
+    content: ' ↗';
+    font-size: 0.75em;
+    color: var(--text-3);
+  }
+  .title.no-link {
+    cursor: default;
+  }
+  .title.no-link::after {
+    content: none;
+  }
+  .org {
+    font-size: 0.8rem;
+    color: var(--text-2);
+  }
+  .amount {
+    font-size: 0.8rem;
+    color: var(--text-3);
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.25rem 0.75rem;
+    margin: 0.45rem 0 0;
+    font-size: 0.8rem;
+  }
+  .facts dt {
+    color: var(--text-3);
+    white-space: nowrap;
+  }
+  .facts dd {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.4rem;
+    margin: 0;
+    color: var(--text-2);
+  }
+  .facts strong {
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .facts strong.closed {
+    color: var(--text-3);
+    text-decoration: line-through;
+  }
+  .muted {
+    color: var(--text-3);
+  }
+  .reasons {
+    flex-basis: 100%;
+    margin: 0.1rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.76rem;
+    line-height: 1.45;
+  }
+  .apps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .apps li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.4rem;
+  }
+  /* 내부 마감 이벤트가 가리키는 그 지원건을 살짝 짚어 준다 */
+  .apps li.current {
+    color: var(--text);
+  }
+  .status {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .overdue {
+    color: var(--red);
+    font-weight: 600;
+  }
+</style>

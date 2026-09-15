@@ -45,12 +45,17 @@ const closedGroups = groupByMonth(closed);
     )
   }
 
+  <!-- 필터로 모두 가려졌을 때. 데이터가 없는 것으로 오해하지 않도록 전체 건수를 같이 적는다. FilterBar 스크립트가 토글. -->
+  <p class="empty" data-filter-empty hidden>
+    필터에 걸리는 공고가 없습니다 (전체 {programs.length}건). 위의 <strong>필터 해제</strong>를 누르면 모두 보입니다.
+  </p>
+
   {
     openGroups.map((group) => (
-      <section class="month" aria-label={group.label}>
+      <section class="month" aria-label={group.label} data-auto-hide>
         <h3 class="month-heading">
           <span>{group.label}</span>
-          <span class="n">{group.items.length}건</span>
+          <span class="n"><span data-visible-count>{group.items.length}</span>건</span>
         </h3>
         <ol class="items">
           {group.items.map((view) => (
@@ -63,13 +68,13 @@ const closedGroups = groupByMonth(closed);
 
   {
     closed.length > 0 && (
-      <details class="closed">
-        <summary>마감된 공고 {closed.length}건</summary>
+      <details class="closed" data-auto-hide>
+        <summary>마감된 공고 <span data-visible-count>{closed.length}</span>건</summary>
         {closedGroups.map((group) => (
-          <section class="month" aria-label={group.label}>
+          <section class="month" aria-label={group.label} data-auto-hide>
             <h3 class="month-heading">
               <span>{group.label}</span>
-              <span class="n">{group.items.length}건</span>
+              <span class="n"><span data-visible-count>{group.items.length}</span>건</span>
             </h3>
             <ol class="items">
               {group.items.map((view) => (

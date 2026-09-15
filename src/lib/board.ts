@@ -91,12 +91,39 @@ export interface BoardSummary {
   overdueCount: number;
 }
 
+/**
+ * 달력에 올리는 이벤트 종류. 배열 순서가 곧 같은 날 안의 표시 순서(중요도)다.
+ * apply-end(접수 마감) > target(내부 마감) > announce(발표 예정) > apply-start(접수 시작)
+ */
+export const CALENDAR_EVENT_KINDS = ['apply-end', 'target', 'announce', 'apply-start'] as const;
+export type CalendarEventKind = (typeof CALENDAR_EVENT_KINDS)[number];
+
+export interface CalendarEvent {
+  /** DOM 식별용. `${kind}:${programId}` 또는 내부 마감이면 `${kind}:${applicationId}`. */
+  key: string;
+  kind: CalendarEventKind;
+  /** 'YYYY-MM-DD' */
+  date: string;
+  program: ProgramView;
+  /** 내부 마감(target)만 특정 지원건에 속한다. 그 외 null. */
+  application: ApplicationView | null;
+  /** 이 이벤트 날짜까지 남은 일수. 음수면 지남. */
+  daysLeft: number;
+  /**
+   * '마감된 공고 숨기기'에 걸리는 이벤트인지 = 공고가 마감됐고 이 날짜도 지났음.
+   * 마감된 공고라도 발표 예정일이 아직 남아 있으면 결과 확인용으로 살아 있어야 하므로 stale이 아니다.
+   */
+  stale: boolean;
+}
+
 export interface BoardModel {
   /** 마감일 오름차순. */
   programs: ProgramView[];
   applications: ApplicationView[];
   /** 만료됨 → 임박 → 미확인 → 유효 순. */
   documents: DocumentView[];
+  /** 날짜 오름차순, 같은 날은 CALENDAR_EVENT_KINDS 순. */
+  events: CalendarEvent[];
   summary: BoardSummary;
 }
 
@@ -113,6 +140,65 @@ const EXPIRY_ORDER: Record<DocumentExpiryState, number> = { expired: 0, expiring
 
 function toDeadline(program: Program, today: Date): Deadline {
   return { daysLeft: daysUntil(program.applyEnd, today), state: deadlineState(program, today) };
+}
+
+const KIND_ORDER: Record<CalendarEventKind, number> = Object.fromEntries(
+  CALENDAR_EVENT_KINDS.map((kind, i) => [kind, i]),
+) as Record<CalendarEventKind, number>;
+
+/**
+ * 공고 뷰에서 달력 이벤트 4종을 뽑는다. 날짜가 없는 항목(applyStart·announceDate·targetSubmitDate 미설정)은
+ * 이벤트를 만들지 않는다. 정렬은 날짜 → 종류 중요도 → 공고 제목.
+ */
+export function buildCalendarEvents(programs: readonly ProgramView[], today: Date): CalendarEvent[] {
+  const events: CalendarEvent[] = [];
+  const push = (
+    kind: CalendarEventKind,
+    date: string,
+    program: ProgramView,
+    application: ApplicationView | null,
+  ) => {
+    const daysLeft = daysUntil(date, today);
+    events.push({
+      key: `${kind}:${application ? application.application.id : program.program.id}`,
+      kind,
+      date,
+      program,
+      application,
+      daysLeft,
+      stale: program.deadline.state === 'closed' && daysLeft < 0,
+    });
+  };
+
+  for (const view of programs) {
+    const { program } = view;
+    push('apply-end', program.applyEnd, view, null);
+    if (program.applyStart) push('apply-start', program.applyStart, view, null);
+    if (program.announceDate) push('announce', program.announceDate, view, null);
+    for (const application of view.applications) {
+      if (application.application.targetSubmitDate) {
+        push('target', application.application.targetSubmitDate, view, application);
+      }
+    }
+  }
+
+  return events.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
+      a.program.program.title.localeCompare(b.program.program.title, 'ko'),
+  );
+}
+
+/** 날짜별로 묶는다. 입력 순서를 보존한다. */
+export function groupEventsByDate(events: readonly CalendarEvent[]): Map<string, CalendarEvent[]> {
+  const byDate = new Map<string, CalendarEvent[]>();
+  for (const event of events) {
+    const bucket = byDate.get(event.date);
+    if (bucket) bucket.push(event);
+    else byDate.set(event.date, [event]);
+  }
+  return byDate;
 }
 
 export function buildBoard({ programs, applications, documents, profile, today }: BoardInput): BoardModel {
@@ -177,6 +263,7 @@ export function buildBoard({ programs, applications, documents, profile, today }
     programs: programViews,
     applications: applicationViews,
     documents: documentViews,
+    events: buildCalendarEvents(programViews, today),
     summary: {
       nearest: programViews.find((v) => v.deadline.state !== 'closed') ?? null,
       activeCount: applicationViews.filter((v) => isActiveStatus(v.application.status)).length,

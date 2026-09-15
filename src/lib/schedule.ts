@@ -38,6 +38,35 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
+/** (year, month(1-12), day) → 'YYYY-MM-DD'. 날짜 문자열을 만드는 유일한 자리. */
+export function toDateStr(year: number, month: number, day: number): string {
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+/** 'YYYY-MM-DD' → { year, month(1-12), day }. */
+export function parseDateStr(dateStr: string): { year: number; month: number; day: number } {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return { year, month, day };
+}
+
+/**
+ * dateStr('YYYY-MM-DD')이 KST 달력에서 무슨 요일인지 (0=일 … 6=토).
+ * 달력 격자의 첫 칸 위치를 정할 때 쓴다. KST 자정 epoch를 다시 +9h 해서 UTC 요일로 읽으면
+ * 실행 환경 타임존과 무관하게 그 날짜의 요일이 나온다.
+ */
+export function weekdayOf(dateStr: string): number {
+  return new Date(dateStrToKstMidnightEpoch(dateStr) + KST_OFFSET_MS).getUTCDay();
+}
+
+/**
+ * year년 month월(1-12)이 며칠까지 있는지. 다음 달 1일에서 하루를 빼는 방식이라
+ * 윤년 규칙(4년/100년/400년)을 따로 적지 않아도 addDays가 맞춰 준다.
+ */
+export function daysInMonth(year: number, month: number): number {
+  const next = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+  return parseDateStr(addDays(toDateStr(next.year, next.month, 1), -1)).day;
+}
+
 /**
  * dateStr('YYYY-MM-DD')이 오늘(today) 기준으로 며칠 후인지 계산한다.
  * KST 자정을 기준으로 날짜 경계를 정규화하므로 로컬 타임존과 무관하게 동일한 결과를 낸다.
@@ -57,7 +86,7 @@ export function daysUntil(dateStr: string, today: Date = new Date()): number {
 export function addDays(dateStr: string, days: number): string {
   const epoch = dateStrToKstMidnightEpoch(dateStr) + days * MS_PER_DAY;
   const { year, month, day } = kstDateParts(new Date(epoch));
-  return `${year}-${pad2(month)}-${pad2(day)}`;
+  return toDateStr(year, month, day);
 }
 
 /**

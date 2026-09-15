@@ -7,6 +7,7 @@
 import type { DeadlineState } from './schedule.ts';
 import type { EligibilityVerdict } from './eligibility.ts';
 import type { DocumentExpiryState } from './documents.ts';
+import type { CalendarEventKind } from './board.ts';
 
 /**
  * 배지·숫자에 쓰는 색상 톤. 색은 상태를 나타낼 때만 쓴다.
@@ -80,3 +81,18 @@ export const DEADLINE_TONE: Record<DeadlineState, Tone> = {
   open: 'neutral',
   upcoming: 'blue',
 };
+
+export const EVENT_KIND_LABEL: Record<CalendarEventKind, string> = {
+  'apply-end': '접수 마감',
+  target: '내부 마감',
+  announce: '발표 예정',
+  'apply-start': '접수 시작',
+};
+
+/** 'YYYY-MM-DD' + 요일 인덱스(0=일) → '9월 30일 (수)'. 달력 상세 패널 제목용. */
+export function formatDayHeading(dateStr: string, weekday: number): string {
+  const [, month, day] = dateStr.split('-');
+  return `${Number(month)}월 ${Number(day)}일 (${WEEKDAY_SHORT[weekday]})`;
+}
+
+const WEEKDAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];

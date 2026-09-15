@@ -2,6 +2,7 @@
 import Badge from './Badge.astro';
 import type { ProgramView } from '../lib/board.ts';
 import { formatDday, formatShortDate, isLinkable, VERDICT_LABEL, VERDICT_TONE } from '../lib/format.ts';
+import { programFilterAttrs, serializeAttrs } from '../lib/filters.ts';
 
 interface Props {
   view: ProgramView;
@@ -9,6 +10,9 @@ interface Props {
 
 const { view } = Astro.props;
 const { program, deadline, startsIn, eligibility, applications } = view;
+
+// FilterBar 스크립트가 data-f-* 속성을 읽어 hidden을 토글한다. data-role="program"은 '표시 중 N건' 집계 단위.
+const filterAttrs = serializeAttrs(programFilterAttrs(view));
 
 // 접수 전(upcoming)이면 큰 숫자는 '접수 시작까지', 그 외에는 '마감까지'.
 const headline =
@@ -25,7 +29,11 @@ const headline =
       };
 ---
 
-<li class:list={['item', `state-${deadline.state}`, { dim: eligibility.verdict === 'ineligible' }]}>
+<li
+  {...filterAttrs}
+  data-role="program"
+  class:list={['item', `state-${deadline.state}`, { dim: eligibility.verdict === 'ineligible' }]}
+>
   <div class="when">
     <span class="dday" aria-hidden="true">{headline.dday}</span>
     <span class="sr-only">{headline.sr}</span>

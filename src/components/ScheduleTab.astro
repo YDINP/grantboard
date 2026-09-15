@@ -1,0 +1,139 @@
+---
+/**
+ * 일정 탭 = 필터 바 + (캘린더 | 타임라인) 보기 전환. 두 보기는 같은 필터를 공유한다.
+ * 어느 보기를 보고 있었는지는 localStorage에 기억한다(기본: 캘린더).
+ */
+import CalendarView from './CalendarView.astro';
+import FilterBar from './FilterBar.astro';
+import TimelineTab from './TimelineTab.astro';
+import type { BoardModel } from '../lib/board.ts';
+import { groupEventsByDate } from '../lib/board.ts';
+import { buildMonthGrid, monthKeyOf, monthSpan } from '../lib/calendar.ts';
+import { collectFacets } from '../lib/filters.ts';
+import { kstDateParts } from '../lib/schedule.ts';
+
+interface Props {
+  board: BoardModel;
+  /** index.astro가 만든 '오늘'. 달력의 오늘 칸·렌더할 달 범위가 이 시각을 따른다. */
+  today: Date;
+}
+
+const { board, today } = Astro.props;
+
+const facets = collectFacets(board.programs);
+const eventsByDate = groupEventsByDate(board.events);
+const months = monthSpan(board.events.map((e) => e.date), today).map(({ year, month }) =>
+  buildMonthGrid(year, month, today),
+);
+const now = kstDateParts(today);
+const todayKey = monthKeyOf({ year: now.year, month: now.month });
+
+const views = [
+  { id: 'calendar', label: '캘린더' },
+  { id: 'timeline', label: '타임라인' },
+];
+---
+
+<div class="schedule" data-filter-scope data-schedule>
+  <div class="toolbar">
+    <div class="switch" role="group" aria-label="일정 보기 방식">
+      {
+        views.map((view, i) => (
+          <button type="button" data-view={view.id} aria-pressed={i === 0 ? 'true' : 'false'}>
+            {view.label}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  {board.programs.length > 0 && <FilterBar facets={facets} total={board.programs.length} />}
+
+  <div data-view-panel="calendar">
+    <CalendarView
+      months={months}
+      eventsByDate={eventsByDate}
+      todayKey={todayKey}
+      totalPrograms={board.programs.length}
+    />
+  </div>
+  <div data-view-panel="timeline" hidden>
+    <TimelineTab programs={board.programs} />
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'grantboard.scheduleView';
+  const root = document.querySelector<HTMLElement>('[data-schedule]');
+  if (root) {
+    const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-view]'));
+    const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-view-panel]'));
+
+    function select(name: string): void {
+      for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.view === name));
+      for (const p of panels) p.hidden = p.dataset.viewPanel !== name;
+    }
+
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      saved = null;
+    }
+    if (saved && buttons.some((b) => b.dataset.view === saved)) select(saved);
+
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        const name = button.dataset.view;
+        if (!name) return;
+        select(name);
+        try {
+          localStorage.setItem(STORAGE_KEY, name);
+        } catch {
+          // 저장 실패해도 전환은 된다.
+        }
+      });
+    }
+  }
+</script>
+
+<style>
+  .schedule {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+  }
+  .switch {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .switch button {
+    min-height: 36px;
+    padding: 0.2rem 0.9rem;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .switch button:hover {
+    color: var(--text);
+  }
+  .switch button[aria-pressed='true'] {
+    background: var(--surface-2);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+</style>
