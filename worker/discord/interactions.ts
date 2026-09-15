@@ -26,6 +26,7 @@ import {
 import { handleMyDeadlinesCommand } from './handlers/myDeadlines.ts';
 import { handleMeCommand } from './handlers/me.ts';
 import { handleStatusBoardCommand } from './handlers/statusBoardCommand.ts';
+import { handleScheduleCommand } from './handlers/schedule.ts';
 import {
   handleProgramAddOpen,
   handleProgramAddSubmit,
@@ -96,6 +97,8 @@ function routeApplicationCommand(interaction: DiscordInteraction, request: Reque
       return handleMeCommand(interaction, env, ctx);
     case COMMAND_NAMES.STATUS_BOARD:
       return handleStatusBoardCommand(interaction, env, ctx);
+    case COMMAND_NAMES.SCHEDULE:
+      return handleScheduleCommand(interaction, env, ctx);
     case COMMAND_NAMES.PROGRAM: {
       const sub = interaction.data?.options?.[0]?.name;
       if (sub === PROGRAM_SUBCOMMANDS.ADD) return handleProgramAddOpen();

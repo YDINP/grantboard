@@ -58,7 +58,14 @@ export const COMMAND_NAMES = {
   CALENDAR: '달력',
   ME: '나는',
   STATUS_BOARD: '현황',
+  SCHEDULE: '일정',
 } as const;
+
+/** /일정의 범위 옵션 값. scheduleTimeline.ts의 ScheduleScope와 같은 문자열이어야 한다. */
+export const SCHEDULE_SCOPE_CHOICES = ['이번달', '다음달까지', '전체'] as const;
+/** /일정의 담당 옵션 이름. applications.owner와 같은 4자 제약을 스키마 단계에서도 건다. */
+export const SCHEDULE_OWNER_OPTION = '담당';
+export const SCHEDULE_SCOPE_OPTION = '범위';
 
 export const PROGRAM_SUBCOMMANDS = { ADD: '추가', LIST: '목록', DELETE: '삭제' } as const;
 export const STATUS_SUBCOMMANDS = { CHANGE: '변경' } as const;
@@ -183,5 +190,26 @@ export const COMMAND_DEFINITIONS = [
     name: COMMAND_NAMES.STATUS_BOARD,
     type: ApplicationCommandType.CHAT_INPUT,
     description: '현황판을 지금 바로 갱신하고 위치를 알려줍니다 (평소엔 자동 갱신됩니다)',
+  },
+  {
+    name: COMMAND_NAMES.SCHEDULE,
+    type: ApplicationCommandType.CHAT_INPUT,
+    description: '날짜순 일정 타임라인 (마감·발표·접수 시작)',
+    options: [
+      {
+        type: ApplicationCommandOptionType.STRING,
+        name: SCHEDULE_SCOPE_OPTION,
+        description: '보여줄 기간 (기본: 이번달)',
+        required: false,
+        choices: SCHEDULE_SCOPE_CHOICES.map((s) => ({ name: s, value: s })),
+      },
+      {
+        type: ApplicationCommandOptionType.STRING,
+        name: SCHEDULE_OWNER_OPTION,
+        description: '특정 담당자 이니셜만 보기',
+        required: false,
+        max_length: OWNER_MAX_LENGTH,
+      },
+    ],
   },
 ] as const;
