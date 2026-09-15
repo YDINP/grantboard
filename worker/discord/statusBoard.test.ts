@@ -7,7 +7,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { syncStatusBoard, buildStatusBoardDescription, DEBOUNCE_MS, type StatusBoardDeps } from './statusBoard.ts';
+import { syncStatusBoard, buildStatusBoardDescription, DEBOUNCE_MS, PENDING_TTL_MS, type StatusBoardDeps } from './statusBoard.ts';
 import type { BoardModel, ProgramView, ApplicationView } from '../../src/lib/board.ts';
 import type { Program, Application } from '../../src/lib/board.ts';
 
@@ -448,6 +448,69 @@ describe('syncStatusBoard debounce', () => {
     await syncStatusBoard(env, h.deps, { force: true });
 
     assert.equal(h.calls.patch, 1, 'force일 때는 즉시(재시도 예약 없이) 편집해야 한다');
+    assert.match(h.lastEmbedDescription, /MARKER-v2/);
+  });
+
+  test('방금 세워진 pending(TTL 이내)은 존중되어 중복 예약하지 않는다', async () => {
+    let version = 'v1';
+    const h = makeControlledDeps(async () => boardWithMarker(version));
+    const env = fakeEnv();
+
+    const now0 = 100_000;
+    await h.deps.setBotState(
+      env.DB,
+      'status_board',
+      JSON.stringify({
+        channelId: 'channel-123',
+        messageId: 'msg-old',
+        lastSyncAt: new Date(now0 - 5_000).toISOString(), // 5초 전 — 디바운스 창(30초) 안
+        pending: true,
+        pendingSince: new Date(now0 - 1_000).toISOString(), // 1초 전 — TTL(120초) 안, 팔팔하게 살아있음
+      }),
+    );
+    h.setClock(now0);
+
+    await syncStatusBoard(env, h.deps);
+
+    assert.equal(h.pendingSleepCount(), 0, '살아있는 예약이 있으면 새로 sleep을 걸지 않고 그냥 리턴해야 한다');
+    assert.equal(h.calls.patch, 0);
+    assert.equal(h.calls.post, 0);
+  });
+
+  test('pending이 TTL을 넘겨 죽어 있으면 건너뛰지 않고 새로 진행해 결국 편집한다(고착 방지)', async () => {
+    let version = 'v2';
+    const h = makeControlledDeps(async () => boardWithMarker(version));
+    const env = fakeEnv();
+
+    // ⚠️ 정상 흐름(우리 코드가 스스로 만드는 상태)에서는 나오지 않는 조합이다 — pendingSince는
+    // 항상 lastSyncAt 이후 DEBOUNCE_MS 안에서만 세워지므로, PENDING_TTL_MS(120초) >
+    // DEBOUNCE_MS(30초)인 한 "아직 디바운스 창 안인데 pending은 TTL을 넘겼다"는 자연 발생하지
+    // 않는다(그 전에 lastSyncAt 기준 창이 먼저 닫혀 publishNow가 직행하며 pending을 지운다).
+    // 이 테스트는 안전장치 자체(ctx.waitUntil 도중 isolate가 회수돼 D1에 pending:true가 죽은 채
+    // 남는 이상 상태)를 직접 흉내 내어 검증한다.
+    const now0 = 200_000;
+    await h.deps.setBotState(
+      env.DB,
+      'status_board',
+      JSON.stringify({
+        channelId: 'channel-123',
+        messageId: 'msg-old',
+        lastSyncAt: new Date(now0 - (DEBOUNCE_MS - 1_000)).toISOString(), // 29초 전 — 아직 디바운스 창 안
+        pending: true,
+        pendingSince: new Date(now0 - PENDING_TTL_MS - 1_000).toISOString(), // TTL을 훌쩍 넘겨 죽은 예약
+      }),
+    );
+    h.setClock(now0);
+
+    const p = syncStatusBoard(env, h.deps);
+    await flushMicrotasks();
+
+    assert.equal(h.pendingSleepCount(), 1, '죽은 예약을 무시하고 새로 예약(sleep)해야 한다 — 조용히 건너뛰기만 하면 안 된다');
+
+    h.releaseNextSleep(now0 + DEBOUNCE_MS);
+    await p;
+
+    assert.equal(h.calls.patch, 1, '결국 편집이 일어나야 한다 — 현황판이 영영 멈추면 안 된다');
     assert.match(h.lastEmbedDescription, /MARKER-v2/);
   });
 });

@@ -44,6 +44,20 @@ const MORE_NOTICE_SUFFIX = '/공고 목록으로 전체 보기';
  */
 export const DEBOUNCE_MS = 30_000;
 
+/**
+ * "재시도가 예약됨"(pending) 표시가 죽은 채로 영원히 남는 것을 막는 안전장치.
+ * ctx.waitUntil 안에서 재시도가 sleep 중일 때 isolate가 회수되면 pending을 풀 코드가 아예
+ * 실행되지 못할 수 있다 — 그때 이 나이 제한보다 오래된 pending은 "죽은 예약"으로 보고 무시한다.
+ *
+ * DEBOUNCE_MS보다 충분히 크게 잡았다: 지금 상수 관계(PENDING_TTL_MS > DEBOUNCE_MS)에서는
+ * lastSyncAt 기준 elapsed가 이 나이 제한보다 먼저 DEBOUNCE_MS를 넘어 publishNow로 직행하며
+ * pending을 지우므로, 정상 흐름만으로는 이 TTL이 실제로 발동할 일이 없다. 그래도 남겨두는 건
+ * ①DEBOUNCE_MS가 나중에 이 값보다 커지도록 바뀌거나 ②D1 상태가 어떤 이유로든(수동 조작,
+ * 버그, 시계 이상) 어긋나는 경우의 방어선이기 때문이다 — "정상 흐름에서 안 걸린다"가
+ * "없어도 된다"는 뜻은 아니다.
+ */
+export const PENDING_TTL_MS = 120_000;
+
 export interface StatusBoardState {
   channelId: string;
   messageId: string;
@@ -51,6 +65,14 @@ export interface StatusBoardState {
   lastSyncAt?: string;
   /** debounce로 건너뛴 뒤 "창이 닫히면 한 번 더 시도"가 이미 예약되어 있는지. 중복 예약 방지용. */
   pending?: boolean;
+  /** ISO 8601. pending이 true로 세워진 시각. PENDING_TTL_MS를 넘으면 죽은 예약으로 간주한다. */
+  pendingSince?: string;
+}
+
+/** pending이 세워져 있고, 그 나이가 PENDING_TTL_MS 이내면 "아직 살아있는 예약"이다. */
+function isPendingAlive(state: StatusBoardState, now: number): boolean {
+  if (!state.pending || !state.pendingSince) return false;
+  return now - Date.parse(state.pendingSince) <= PENDING_TTL_MS;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +200,7 @@ function parseState(raw: string | null): StatusBoardState | null {
         messageId: parsed.messageId,
         lastSyncAt: typeof parsed.lastSyncAt === 'string' ? parsed.lastSyncAt : undefined,
         pending: parsed.pending === true,
+        pendingSince: typeof parsed.pendingSince === 'string' ? parsed.pendingSince : undefined,
       };
     }
   } catch {
@@ -269,17 +292,17 @@ async function publishNow(env: Env, deps: StatusBoardDeps, state: StatusBoardSta
 
 /**
  * debounce 창 안에서 건너뛴 호출을 대신해 "창이 닫히는 시점"에 한 번 더 시도를 예약한다.
- * 같은 창에서 여러 번 건너뛰어도(연속 커맨드) pending 플래그 덕분에 재시도는 딱 하나만 예약된다 —
- * 재시도가 실행될 때는 그 시점의 최신 데이터를 다시 읽으므로, 그 사이에 들어온 마지막 변경까지
- * 전부 반영된다.
+ * 호출 시점에 이미 살아있는 예약이 있는지는 호출자(syncStatusBoard)가 isPendingAlive로 먼저
+ * 걸러준다 — 여기 도착했다는 건 "예약이 없거나(정상), 있었지만 죽었다(TTL 초과, 복구)"는 뜻이라
+ * 무조건 새로 예약한다. 재시도가 실행될 때는 그 시점의 최신 데이터를 다시 읽으므로, 그 사이에
+ * 들어온 마지막 변경까지 전부 반영된다.
  */
 async function schedulePendingRetry(env: Env, deps: StatusBoardDeps, state: StatusBoardState): Promise<void> {
-  if (state.pending) return; // 이미 예약된 재시도가 있다 — 중복 예약하지 않는다.
-
-  const lastSyncEpoch = state.lastSyncAt ? Date.parse(state.lastSyncAt) : deps.now();
+  const now = deps.now();
+  const lastSyncEpoch = state.lastSyncAt ? Date.parse(state.lastSyncAt) : now;
   const fireAt = lastSyncEpoch + DEBOUNCE_MS;
 
-  await persistState(env, deps, { ...state, pending: true });
+  await persistState(env, deps, { ...state, pending: true, pendingSince: new Date(now).toISOString() });
   await deps.sleep(Math.max(0, fireAt - deps.now()));
 
   // 잠든 사이 다른 호출이 이미 이 시점 이후로 갱신을 끝냈으면 중복 발행하지 않는다.
@@ -298,6 +321,10 @@ async function schedulePendingRetry(env: Env, deps: StatusBoardDeps, state: Stat
  * 낡는 것을 막기 위함이다. 단, 건너뛴 변경은 절대 유실되지 않는다: 창이 닫히는 시점에
  * 예약된 재시도가 그때의 최신 데이터로 한 번 더 반영한다.
  *
+ * ⚠️ 이미 예약된 재시도가 PENDING_TTL_MS를 넘겨도 살아있지 않으면(isolate 회수 등으로
+ * 죽은 예약) 죽은 것으로 보고 무시하고 즉시 새로 예약한다 — pending이 영구히 stuck 상태로
+ * 남아 현황판이 조용히 멈추는 것을 막기 위함이다.
+ *
  * opts.force가 true면(예: /현황 수동 갱신) debounce를 완전히 무시하고 즉시 반영한다 —
  * 사람이 명시적으로 새로고침을 요청한 것이기 때문이다.
  *
@@ -307,10 +334,14 @@ async function schedulePendingRetry(env: Env, deps: StatusBoardDeps, state: Stat
 export async function syncStatusBoard(env: Env, deps: StatusBoardDeps = defaultDeps, opts: { force?: boolean } = {}): Promise<void> {
   try {
     const state = parseState(await deps.getBotState(env.DB, STATE_KEY));
+    const now = deps.now();
 
     if (!opts.force && state?.lastSyncAt) {
-      const elapsed = deps.now() - Date.parse(state.lastSyncAt);
+      const elapsed = now - Date.parse(state.lastSyncAt);
       if (elapsed < DEBOUNCE_MS) {
+        if (isPendingAlive(state, now)) {
+          return; // 이미 살아있는 예약이 있다 — 중복 예약하지 않는다.
+        }
         await schedulePendingRetry(env, deps, state);
         return;
       }

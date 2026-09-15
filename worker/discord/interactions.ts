@@ -20,7 +20,8 @@ import { handleDocumentCompleteCommand, handleDocumentToggleSelect } from './han
 import {
   handleDocumentLinkCommand,
   handleDocumentLinkSelectDoc,
-  handleDocumentLinkSelectApp,
+  handleDocumentLinkSelectProgram,
+  handleDocumentLinkProgramPage,
 } from './handlers/documentsLink.ts';
 import { handleMyDeadlinesCommand } from './handlers/myDeadlines.ts';
 import { handleMeCommand } from './handlers/me.ts';
@@ -37,7 +38,12 @@ import {
   handleProgramDeleteConfirm,
   handleProgramDeleteCancel,
 } from './handlers/programsDelete.ts';
-import { handleStatusChangeCommand, handleStatusProgramSelect, handleStatusValueSelect } from './handlers/status.ts';
+import {
+  handleStatusChangeCommand,
+  handleStatusProgramPage,
+  handleStatusProgramSelect,
+  handleStatusValueSelect,
+} from './handlers/status.ts';
 
 export async function handleInteraction(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const signature = request.headers.get('X-Signature-Ed25519');
@@ -125,12 +131,14 @@ function routeMessageComponent(interaction: DiscordInteraction, env: Env, ctx: E
   }
   if (decoded.namespace === 'status') {
     if (decoded.action === 'select-program') return handleStatusProgramSelect(interaction);
+    if (decoded.action === 'select-program-page') return handleStatusProgramPage(interaction, env, ctx);
     if (decoded.action === 'select-value') return handleStatusValueSelect(interaction, env, ctx);
   }
   if (decoded.namespace === 'documents') {
     if (decoded.action === 'toggle-select') return handleDocumentToggleSelect(interaction, env, ctx);
     if (decoded.action === 'link-select-doc') return handleDocumentLinkSelectDoc(interaction, env, ctx);
-    if (decoded.action === 'link-select-app') return handleDocumentLinkSelectApp(interaction, env, ctx);
+    if (decoded.action === 'link-select-program') return handleDocumentLinkSelectProgram(interaction, env, ctx);
+    if (decoded.action === 'link-program-page') return handleDocumentLinkProgramPage(interaction, env, ctx);
   }
   return errorMessageResponse('알 수 없는 컴포넌트 상호작용입니다.');
 }
