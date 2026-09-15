@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDigest } from './digest.ts';
+import { buildDigest, selectDigestSections, digestUrgency, shouldMentionHere } from './digest.ts';
 import type { Program, Application, Document } from './board.ts';
 import type { TeamProfile } from './eligibility.ts';
 
@@ -226,5 +226,91 @@ describe('buildDigest - 종합', () => {
     const p = program({ id: 'p-1', applyEnd: '2026-09-15' });
     const result = buildDigest([p], [], [], PROFILE, TODAY);
     assert.match(result!, /^📋 GrantBoard D-day 다이제스트 \(2026-09-14\)/);
+  });
+});
+
+describe('digestUrgency', () => {
+  test('D-day 마감이 있으면 red', () => {
+    const p = program({ id: 'p-today', applyEnd: '2026-09-14' }); // TODAY 기준 D-day
+    const sections = selectDigestSections([p], [], [], PROFILE, TODAY)!;
+    assert.equal(digestUrgency(sections), 'red');
+  });
+
+  test('D-1~D-3 마감만 있으면 orange', () => {
+    const p = program({ id: 'p-soon', applyEnd: '2026-09-16' }); // D-2
+    const sections = selectDigestSections([p], [], [], PROFILE, TODAY)!;
+    assert.equal(digestUrgency(sections), 'orange');
+  });
+
+  test('내부 마감 초과만 있어도(실제 접수마감은 여유) red — "이미 지남" 자체가 신호다', () => {
+    const p = program({ id: 'p-1', applyEnd: '2026-12-31' });
+    const a = application({ id: 'a-1', programId: 'p-1', status: '작성중', targetSubmitDate: '2026-09-01' });
+    const sections = selectDigestSections([p], [a], [], PROFILE, TODAY)!;
+    assert.equal(digestUrgency(sections), 'red');
+  });
+
+  test('발표일 경과만 있어도 red', () => {
+    const p = program({ id: 'p-1', announceDate: '2026-09-01' });
+    const a = application({ id: 'a-1', programId: 'p-1', status: '검토중' });
+    const sections = selectDigestSections([p], [a], [], PROFILE, TODAY)!;
+    assert.equal(digestUrgency(sections), 'red');
+  });
+
+  test('서류가 실제로 만료됐으면(expired) red', () => {
+    const p = program({ id: 'p-1' });
+    const a = application({ id: 'a-1', programId: 'p-1', status: '검토중', documentIds: ['d-1'] });
+    const d = document({ id: 'd-1', validUntil: '2026-09-01' }); // 이미 만료
+    const sections = selectDigestSections([p], [a], [d], PROFILE, TODAY)!;
+    assert.equal(digestUrgency(sections), 'red');
+  });
+
+  test('만료 임박 서류가 4일 이상 남았을 뿐이면(급한 마감 없이) green', () => {
+    const p = program({ id: 'p-1' });
+    const a = application({ id: 'a-1', programId: 'p-1', status: '검토중', documentIds: ['d-1'] });
+    const d = document({ id: 'd-1', validUntil: '2026-09-25' }); // 11일 남음 -> expiring, but green 범위
+    const sections = selectDigestSections([p], [a], [d], PROFILE, TODAY)!;
+    assert.equal(digestUrgency(sections), 'green');
+  });
+
+  test('만료 임박 서류가 3일 이내면 orange', () => {
+    const p = program({ id: 'p-1' });
+    const a = application({ id: 'a-1', programId: 'p-1', status: '검토중', documentIds: ['d-1'] });
+    const d = document({ id: 'd-1', validUntil: '2026-09-16' }); // 2일 남음
+    const sections = selectDigestSections([p], [a], [d], PROFILE, TODAY)!;
+    assert.equal(digestUrgency(sections), 'orange');
+  });
+});
+
+describe('shouldMentionHere', () => {
+  test('D-day 마감이 있으면 @here 대상이다', () => {
+    const p = program({ id: 'p-today', applyEnd: '2026-09-14' });
+    const sections = selectDigestSections([p], [], [], PROFILE, TODAY)!;
+    assert.equal(shouldMentionHere(sections), true);
+  });
+
+  test('D-1 마감이 있으면 @here 대상이다', () => {
+    const p = program({ id: 'p-d1', applyEnd: '2026-09-15' });
+    const sections = selectDigestSections([p], [], [], PROFILE, TODAY)!;
+    assert.equal(shouldMentionHere(sections), true);
+  });
+
+  test('D-2~D-3 마감만 있으면 @here 대상이 아니다 — 조용히 게시만 한다', () => {
+    const p = program({ id: 'p-d2', applyEnd: '2026-09-16' });
+    const sections = selectDigestSections([p], [], [], PROFILE, TODAY)!;
+    assert.equal(shouldMentionHere(sections), false);
+  });
+
+  test('실제 마감 없이 내부마감초과/발표경과/서류만료만 있으면 @here 대상이 아니다', () => {
+    const p = program({ id: 'p-1', applyEnd: '2026-12-31', announceDate: '2026-09-01' });
+    const a = application({
+      id: 'a-1',
+      programId: 'p-1',
+      status: '작성중',
+      targetSubmitDate: '2026-09-01',
+      documentIds: ['d-1'],
+    });
+    const d = document({ id: 'd-1', validUntil: '2026-09-01' });
+    const sections = selectDigestSections([p], [a], [d], PROFILE, TODAY)!;
+    assert.equal(shouldMentionHere(sections), false);
   });
 });

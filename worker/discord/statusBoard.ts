@@ -6,6 +6,11 @@
  * 날짜·자격·만료 판정은 전부 loadBoard.ts(→ src/lib/board.ts)에 위임한다 — 여기서는 그 결과를
  * 사람이 읽는 embed 텍스트로 조립하기만 한다.
  *
+ * ⚠️ 편집 빈도 제한(debounce): 마지막 성공 편집으로부터 DEBOUNCE_MS 안에 다시 불리면 즉시
+ * 편집하지 않고, 창이 닫히는 시점에 최신 데이터로 한 번 더 반영되도록 예약만 한다(자세한 건
+ * schedulePendingRetry 참고). 건너뛴 변경이 유실되는 일은 없다. /현황(수동 갱신)만 force로
+ * 이 제한을 무시한다.
+ *
  * ⚠️ 이 함수는 절대 예외를 밖으로 던지지 않는다. 호출자(각 커맨드 핸들러)는 이미 사용자에게
  * 원래 응답을 보낸 뒤라, 현황판 갱신이 실패해도 그 응답에 영향을 주면 안 된다.
  */
@@ -32,9 +37,20 @@ const EMBED_DESCRIPTION_LIMIT = 4096;
 const MAX_ITEMS_PER_GROUP = 8;
 const MORE_NOTICE_SUFFIX = '/공고 목록으로 전체 보기';
 
+/**
+ * 메시지 편집 최소 간격. 실무 권고(30~60초에 한 번)의 아래쪽을 택했다 — 봇 토큰 전체 기준
+ * 초당 50요청이 상한이라 이 값 자체가 429를 막는 건 아니지만, 짧은 시간에 편집이 몰려
+ * "현황판이 조용히 낡는" 상황(429 → 반영 안 됨)을 피하기 위한 자체 제한이다.
+ */
+export const DEBOUNCE_MS = 30_000;
+
 export interface StatusBoardState {
   channelId: string;
   messageId: string;
+  /** ISO 8601. 마지막으로 실제 편집/생성에 성공한 시각 — debounce 판단 기준. */
+  lastSyncAt?: string;
+  /** debounce로 건너뛴 뒤 "창이 닫히면 한 번 더 시도"가 이미 예약되어 있는지. 중복 예약 방지용. */
+  pending?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,7 +173,12 @@ function parseState(raw: string | null): StatusBoardState | null {
   try {
     const parsed = JSON.parse(raw) as Partial<StatusBoardState>;
     if (typeof parsed.channelId === 'string' && typeof parsed.messageId === 'string') {
-      return { channelId: parsed.channelId, messageId: parsed.messageId };
+      return {
+        channelId: parsed.channelId,
+        messageId: parsed.messageId,
+        lastSyncAt: typeof parsed.lastSyncAt === 'string' ? parsed.lastSyncAt : undefined,
+        pending: parsed.pending === true,
+      };
     }
   } catch {
     // 손상된 상태는 없는 것으로 치고 아래에서 새로 만든다.
@@ -166,9 +187,9 @@ function parseState(raw: string | null): StatusBoardState | null {
 }
 
 /**
- * 실제 D1/디스코드 호출을 주입 가능하게 만든 의존성. 기본값은 진짜 구현이라
+ * 실제 D1/디스코드 호출과 시간/지연을 주입 가능하게 만든 의존성. 기본값은 진짜 구현이라
  * syncStatusBoard(env) 한 인자 호출만으로 지금까지와 동일하게 동작한다 — 테스트에서만
- * 이 두 번째 인자로 가짜를 넣어 실네트워크 호출 없이 분기를 검증한다.
+ * now/sleep까지 가짜로 넣어 실제 30초를 기다리지 않고 debounce 분기를 검증한다.
  */
 export interface StatusBoardDeps {
   loadBoard: typeof loadBoardModel;
@@ -176,6 +197,12 @@ export interface StatusBoardDeps {
   setBotState: typeof setBotState;
   postChannelMessage: typeof postChannelMessage;
   patchChannelMessage: typeof patchChannelMessage;
+  now: () => number;
+  sleep: (ms: number) => Promise<void>;
+}
+
+function realSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const defaultDeps: StatusBoardDeps = {
@@ -184,6 +211,8 @@ const defaultDeps: StatusBoardDeps = {
   setBotState,
   postChannelMessage,
   patchChannelMessage,
+  now: () => Date.now(),
+  sleep: realSleep,
 };
 
 /** /현황 커맨드가 갱신 직후 "바로가기" 링크를 만들 때 쓴다. */
@@ -191,18 +220,34 @@ export async function getStatusBoardState(env: Env, deps: StatusBoardDeps = defa
   return parseState(await deps.getBotState(env.DB, STATE_KEY));
 }
 
-async function publishStatusBoard(env: Env, embed: DiscordEmbed, deps: StatusBoardDeps): Promise<void> {
-  const state = parseState(await deps.getBotState(env.DB, STATE_KEY));
+async function persistState(env: Env, deps: StatusBoardDeps, state: StatusBoardState): Promise<void> {
+  await deps.setBotState(env.DB, STATE_KEY, JSON.stringify(state));
+}
 
-  if (state) {
+/**
+ * 실제로 embed를 다시 조립해 채널 메시지를 만들거나 편집한다. 항상 **호출 시점의 최신 데이터**를
+ * 다시 읽는다 — debounce로 건너뛰었다가 뒤늦게 이 함수를 부를 때도 그 사이에 바뀐 내용이
+ * 반영되게 하려는 것이다(건너뛴 시점의 낡은 스냅샷을 들고 있지 않는다).
+ */
+async function publishNow(env: Env, deps: StatusBoardDeps, state: StatusBoardState | null): Promise<void> {
+  const board = await deps.loadBoard(env.DB);
+  const embed = buildStatusBoardEmbed(board);
+  const now = deps.now();
+
+  if (state?.channelId && state.messageId) {
     const edited: ChannelMessageResult = await deps.patchChannelMessage(state.channelId, state.messageId, env.DISCORD_BOT_TOKEN, {
       embeds: [embed],
     });
-    if (edited.ok) return;
+    if (edited.ok) {
+      await persistState(env, deps, { channelId: state.channelId, messageId: state.messageId, lastSyncAt: new Date(now).toISOString(), pending: false });
+      return;
+    }
     if (edited.status !== 404) {
       // 404가 아니면(권한 회수 등) 원인을 알 수 없으니 새 메시지를 또 만들지 않는다 —
-      // 그러면 진짜 원인은 안 고쳐지고 채널에 현황판만 계속 쌓인다.
+      // 그러면 진짜 원인은 안 고쳐지고 채널에 현황판만 계속 쌓인다. pending만 풀어서
+      // 다음 호출이 새 debounce 주기를 시작할 수 있게 한다.
       console.error(`현황판 메시지 편집 실패: status=${edited.status}`);
+      await persistState(env, deps, { ...state, pending: false });
       return;
     }
     // 404 — 사람이 메시지를 지웠다. 아래에서 새로 만든다.
@@ -211,21 +256,67 @@ async function publishStatusBoard(env: Env, embed: DiscordEmbed, deps: StatusBoa
   const created = await deps.postChannelMessage(env.DISCORD_CHANNEL_ID, env.DISCORD_BOT_TOKEN, { embeds: [embed] });
   if (!created.ok || !created.messageId) {
     console.error(`현황판 메시지 생성 실패: status=${created.status}`);
+    if (state) await persistState(env, deps, { ...state, pending: false });
     return;
   }
-  await deps.setBotState(env.DB, STATE_KEY, JSON.stringify({ channelId: env.DISCORD_CHANNEL_ID, messageId: created.messageId }));
+  await persistState(env, deps, {
+    channelId: env.DISCORD_CHANNEL_ID,
+    messageId: created.messageId,
+    lastSyncAt: new Date(now).toISOString(),
+    pending: false,
+  });
+}
+
+/**
+ * debounce 창 안에서 건너뛴 호출을 대신해 "창이 닫히는 시점"에 한 번 더 시도를 예약한다.
+ * 같은 창에서 여러 번 건너뛰어도(연속 커맨드) pending 플래그 덕분에 재시도는 딱 하나만 예약된다 —
+ * 재시도가 실행될 때는 그 시점의 최신 데이터를 다시 읽으므로, 그 사이에 들어온 마지막 변경까지
+ * 전부 반영된다.
+ */
+async function schedulePendingRetry(env: Env, deps: StatusBoardDeps, state: StatusBoardState): Promise<void> {
+  if (state.pending) return; // 이미 예약된 재시도가 있다 — 중복 예약하지 않는다.
+
+  const lastSyncEpoch = state.lastSyncAt ? Date.parse(state.lastSyncAt) : deps.now();
+  const fireAt = lastSyncEpoch + DEBOUNCE_MS;
+
+  await persistState(env, deps, { ...state, pending: true });
+  await deps.sleep(Math.max(0, fireAt - deps.now()));
+
+  // 잠든 사이 다른 호출이 이미 이 시점 이후로 갱신을 끝냈으면 중복 발행하지 않는다.
+  const latest = parseState(await deps.getBotState(env.DB, STATE_KEY));
+  const latestSyncEpoch = latest?.lastSyncAt ? Date.parse(latest.lastSyncAt) : 0;
+  if (latestSyncEpoch >= fireAt) return;
+
+  await publishNow(env, deps, latest);
 }
 
 /**
  * 현황판을 최신 상태로 맞춘다. 데이터를 바꾸는 모든 커맨드 뒤와 크론에서 부른다.
+ *
+ * 마지막 성공 편집으로부터 DEBOUNCE_MS(30초) 안에 다시 불리면 즉시 편집하지 않고
+ * schedulePendingRetry로 넘긴다 — 짧은 시간에 편집이 몰려 429를 맞고 현황판이 조용히
+ * 낡는 것을 막기 위함이다. 단, 건너뛴 변경은 절대 유실되지 않는다: 창이 닫히는 시점에
+ * 예약된 재시도가 그때의 최신 데이터로 한 번 더 반영한다.
+ *
+ * opts.force가 true면(예: /현황 수동 갱신) debounce를 완전히 무시하고 즉시 반영한다 —
+ * 사람이 명시적으로 새로고침을 요청한 것이기 때문이다.
+ *
  * 무엇이 실패하든(D1 조회, 디스코드 API) 여기서 삼키고 console.error만 남긴다 — 호출자의
  * 원래 응답에 영향을 주지 않기 위함이다.
  */
-export async function syncStatusBoard(env: Env, deps: StatusBoardDeps = defaultDeps): Promise<void> {
+export async function syncStatusBoard(env: Env, deps: StatusBoardDeps = defaultDeps, opts: { force?: boolean } = {}): Promise<void> {
   try {
-    const board = await deps.loadBoard(env.DB);
-    const embed = buildStatusBoardEmbed(board);
-    await publishStatusBoard(env, embed, deps);
+    const state = parseState(await deps.getBotState(env.DB, STATE_KEY));
+
+    if (!opts.force && state?.lastSyncAt) {
+      const elapsed = deps.now() - Date.parse(state.lastSyncAt);
+      if (elapsed < DEBOUNCE_MS) {
+        await schedulePendingRetry(env, deps, state);
+        return;
+      }
+    }
+
+    await publishNow(env, deps, state);
   } catch (err) {
     console.error('현황판 갱신 실패', err instanceof Error ? err.message : String(err));
   }

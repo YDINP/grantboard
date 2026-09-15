@@ -15,7 +15,8 @@ export function handleStatusBoardCommand(interaction: DiscordInteraction, env: E
 
 async function respondStatusBoard(interaction: DiscordInteraction, env: Env): Promise<void> {
   // syncStatusBoard는 내부에서 모든 실패를 삼킨다(console.error만 남김) — 여기서 별도 try/catch가 필요 없다.
-  await syncStatusBoard(env);
+  // force: true — 사람이 명시적으로 새로고침을 요청했으니 debounce(30초 제한)를 무시하고 즉시 반영한다.
+  await syncStatusBoard(env, undefined, { force: true });
 
   const state = await getStatusBoardState(env);
   if (!state) {

@@ -92,3 +92,39 @@ export async function patchChannelMessage(
   });
   return { ok: res.ok, status: res.status, messageId: res.ok ? await extractMessageId(res) : undefined };
 }
+
+export interface CreateThreadResult {
+  ok: boolean;
+  status: number;
+}
+
+/**
+ * 특정 메시지에서 스레드를 연다(POST /channels/{id}/messages/{msg}/threads). 다이제스트처럼
+ * "게시 직후 그 메시지에 토론용 스레드를 붙이는" 용도 — 채널 본문은 계속 깨끗하게 유지된다.
+ *
+ * 호출자는 이 실패를 절대 본 작업(메시지 발송)의 실패로 취급하면 안 된다 — 스레드는 부가 기능이다.
+ * 그래서 이 함수는 예외를 던지지 않고 항상 { ok, status }만 돌려준다.
+ */
+export async function createMessageThread(
+  channelId: string,
+  messageId: string,
+  botToken: string,
+  name: string,
+): Promise<CreateThreadResult> {
+  try {
+    const res = await fetch(`${API_BASE}/channels/${channelId}/messages/${messageId}/threads`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        'content-type': 'application/json',
+        'User-Agent': USER_AGENT,
+      },
+      // 디스코드 스레드 이름은 100자 제한이다.
+      body: JSON.stringify({ name: name.slice(0, 100) }),
+    });
+    return { ok: res.ok, status: res.status };
+  } catch (err) {
+    console.error(`디스코드 스레드 생성 실패(네트워크): ${err instanceof Error ? err.message : String(err)}`);
+    return { ok: false, status: 0 };
+  }
+}

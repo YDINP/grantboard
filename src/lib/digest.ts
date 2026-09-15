@@ -45,18 +45,29 @@ function section(title: string, lines: string[]): string {
   return [title, ...lines].join('\n');
 }
 
+/** buildDigest(텍스트)와 worker/cron/digest.ts(Discord embed)가 공유하는, 다이제스트에 담을 네 범주. */
+export interface DigestSections {
+  deadlineSoon: ProgramView[];
+  overdueUnsubmitted: ApplicationView[];
+  docAlerts: DocumentView[];
+  announceOverdue: ApplicationView[];
+}
+
 /**
- * 다이제스트에 담을 네 가지 경고 범주를 골라 사람이 읽을 텍스트 메시지로 조립한다.
- * 네 범주 모두 비어 있으면 null을 반환한다 — "오늘은 조용합니다" 같은 알림도 보내지 않기 위함이다
- * (조용한 날까지 알림이 오면 팀이 알림 자체를 꺼버린다).
+ * 다이제스트에 담을 네 가지 경고 범주를 고른다. 네 범주 모두 비어 있으면 null — "오늘은
+ * 조용합니다" 같은 알림도 보내지 않기 위함이다(조용한 날까지 알림이 오면 팀이 알림 자체를 꺼버린다).
+ *
+ * buildDigest(텍스트, scripts/notify.mjs용)와 worker/cron/digest.ts(Discord embed용)가 이 함수 하나로
+ * "무엇이 다이제스트에 들어가는가"를 공유한다 — 두 출력 형식이 서로 다른 항목을 보여주면 안 되므로
+ * 선택 로직은 여기 한 곳에만 둔다.
  */
-export function buildDigest(
+export function selectDigestSections(
   programs: BoardInput['programs'],
   applications: BoardInput['applications'],
   documents: BoardInput['documents'],
   profile: BoardInput['profile'],
   today: Date,
-): string | null {
+): DigestSections | null {
   const board = buildBoard({ programs, applications, documents, profile, today });
 
   // 1) 오늘 마감 / 3일 이내 마감 — deadlineState의 'urgent' 정의(마감까지 3일 이내, 당일 포함)를 그대로 쓴다.
@@ -69,7 +80,7 @@ export function buildDigest(
 
   // 3) 만료됐거나 14일 이내 만료되는 서류 중, 진행 중(active) 지원건에 실제로 물려 있는 것만.
   //    쓰이지 않는 서류의 만료는 소음이므로 뺀다.
-  const docAlerts = board.documents.filter(
+  const docAlerts: DocumentView[] = board.documents.filter(
     (v) =>
       (v.expiry.state === 'expired' || v.expiry.state === 'expiring') &&
       v.usedBy.some((u) => isActiveStatus(u.application.status)),
@@ -92,6 +103,65 @@ export function buildDigest(
   ) {
     return null;
   }
+
+  return { deadlineSoon, overdueUnsubmitted, docAlerts, announceOverdue };
+}
+
+export type DigestUrgency = 'red' | 'orange' | 'green';
+
+/**
+ * 다이제스트 전체의 긴급도. Discord embed 색상 + @here 멘션 판단(shouldMentionHere)의 재료다.
+ *   red    — 마감 당일이거나 이미 지남: deadlineSoon에 D-day(daysLeft 0)가 있거나, 내부마감 초과/
+ *            발표일 경과 항목이 있거나(둘 다 정의상 "이미 지남"), 서류가 만료됨(expired)
+ *   orange — D-3 이내: deadlineSoon에 D-1~D-3이 있거나, 서류 만료가 3일 이내로 임박함
+ *   green  — 그 외(만료 임박 서류가 4일 이상 남은 경우 등, 급하진 않지만 알려는 줘야 하는 신호)
+ *
+ * 내부마감 초과/발표일 경과는 "언제까지"가 아니라 "이미 지났다"는 사실 자체가 신호라, 별도
+ * daysLeft 없이 곧장 red 취급용 sentinel(-1)을 넣는다.
+ */
+export function digestUrgency(sections: DigestSections): DigestUrgency {
+  const daysLeftCandidates: number[] = [];
+  for (const v of sections.deadlineSoon) daysLeftCandidates.push(v.deadline.daysLeft);
+  for (const v of sections.docAlerts) {
+    if (v.expiry.daysLeft !== null) daysLeftCandidates.push(v.expiry.daysLeft);
+  }
+  if (sections.overdueUnsubmitted.length > 0 || sections.announceOverdue.length > 0) {
+    daysLeftCandidates.push(-1);
+  }
+
+  if (daysLeftCandidates.length === 0) return 'green';
+  const worst = Math.min(...daysLeftCandidates);
+  if (worst <= 0) return 'red';
+  if (worst <= 3) return 'orange';
+  return 'green';
+}
+
+/**
+ * @here로 부를지. 실제 마감이 D-1 또는 D-day일 때만 true — 그 외에는 절대 멘션하지 않는다.
+ * (팀 요청: 매일 같은 방식으로 멘션하면 알림 피로로 채널을 음소거하게 되고, 정작 급한 날에도
+ * 아무도 안 보게 된다. 서류만료·내부마감초과·발표경과는 급하지만 "오늘 당장 제출해야 하는
+ * 마감"은 아니므로 멘션 기준에서 뺀다. @everyone은 오프라인 멤버까지 깨우므로 절대 쓰지 않는다
+ * — 이 함수는 애초에 @here 여부만 판단하고, @everyone은 선택지에 없다.)
+ */
+export function shouldMentionHere(sections: DigestSections): boolean {
+  return sections.deadlineSoon.some((v) => v.deadline.daysLeft <= 1);
+}
+
+/**
+ * 다이제스트를 사람이 읽을 텍스트 메시지로 조립한다. 무엇을 담을지는 selectDigestSections가 정한다 —
+ * 텍스트 조립(이 함수)과 Discord embed 조립(worker/cron/digest.ts)이 서로 다른 항목을 보여주지
+ * 않도록, "선택"과 "표시"를 분리했다.
+ */
+export function buildDigest(
+  programs: BoardInput['programs'],
+  applications: BoardInput['applications'],
+  documents: BoardInput['documents'],
+  profile: BoardInput['profile'],
+  today: Date,
+): string | null {
+  const selected = selectDigestSections(programs, applications, documents, profile, today);
+  if (!selected) return null;
+  const { deadlineSoon, overdueUnsubmitted, docAlerts, announceOverdue } = selected;
 
   const sections: string[] = [`📋 GrantBoard D-day 다이제스트 (${kstDateLabel(today)})`];
 
