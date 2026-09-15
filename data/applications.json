@@ -11,12 +11,12 @@
   {
     "id": "app-wanted-ai-2026",
     "programId": "wanted-ai-championship-2026",
-    "status": "작성중",
+    "status": "제출완료",
     "owner": "에이든",
     "priority": "high",
     "documentIds": [],
-    "note": "신청 등록 완료. 남은 마감은 과제 제출 2026-09-20 — 내부 마감을 9/19로 잡음(마감 당일 접속 폭주 대비).",
-    "targetSubmitDate": "2026-09-19"
+    "note": "신청·과제 제출 완료(에이든). 본선 진출 발표 2026-10-07, 데모데이·시상식 10-17.",
+    "submittedAt": "2026-09-15"
   },
   {
     "id": "app-ilsang-flip-2026",
