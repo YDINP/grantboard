@@ -102,6 +102,86 @@ describe('buildDigest - 오늘/3일 이내 마감', () => {
     const result = buildDigest([p], [], [], PROFILE, TODAY);
     assert.equal(result, null);
   });
+
+  // 실전 사고: 제출완료/서류통과/최종선정/탈락인데 마감이 임박했다는 이유만으로 계속 뜨면
+  // "할 일이 없는 건"으로 @here까지 울리게 된다(shouldMentionHere가 이 배열만 본다).
+  test('제출완료면 더 할 일이 없으므로 마감이 임박해도 제외한다', () => {
+    const p = program({ id: 'p-1', title: '제출완료공고', applyEnd: '2026-09-15' }); // D-1
+    const a = application({ id: 'a-1', programId: 'p-1', status: '제출완료' });
+    assert.equal(buildDigest([p], [a], [], PROFILE, TODAY), null);
+  });
+
+  test('서류통과여도 마감 임박 목록에서 제외한다', () => {
+    const p = program({ id: 'p-1', applyEnd: '2026-09-14' }); // D-day
+    const a = application({ id: 'a-1', programId: 'p-1', status: '서류통과' });
+    assert.equal(buildDigest([p], [a], [], PROFILE, TODAY), null);
+  });
+
+  test('최종선정·탈락이어도 제외한다', () => {
+    const p1 = program({ id: 'p-1', applyEnd: '2026-09-14' });
+    const a1 = application({ id: 'a-1', programId: 'p-1', status: '최종선정' });
+    const p2 = program({ id: 'p-2', applyEnd: '2026-09-14' });
+    const a2 = application({ id: 'a-2', programId: 'p-2', status: '탈락' });
+    assert.equal(buildDigest([p1, p2], [a1, a2], [], PROFILE, TODAY), null);
+  });
+
+  test('제출 전 단계(검토중/준비/작성중)는 그대로 포함한다', () => {
+    for (const status of ['검토중', '준비', '작성중'] as const) {
+      const p = program({ id: `p-${status}`, title: `${status}공고`, applyEnd: '2026-09-15' });
+      const a = application({ id: `a-${status}`, programId: `p-${status}`, status });
+      const result = buildDigest([p], [a], [], PROFILE, TODAY);
+      assert.ok(result, `${status} 상태는 포함되어야 한다`);
+      assert.match(result!, new RegExp(`${status}공고`));
+    }
+  });
+
+  test('지원건이 아예 없는 공고는 포함한다 — 지원할지 결정하는 것 자체가 마감 전 할 일이다', () => {
+    const p = program({ id: 'p-1', title: '미지원결정필요공고', applyEnd: '2026-09-15' });
+    const result = buildDigest([p], [], [], PROFILE, TODAY);
+    assert.ok(result);
+    assert.match(result!, /미지원결정필요공고/);
+  });
+
+  test('지원건이 여럿이면 하나라도 제출 전 단계면 포함한다', () => {
+    const p = program({ id: 'p-1', title: '복수지원건공고', applyEnd: '2026-09-15' });
+    const done = application({ id: 'a-done', programId: 'p-1', status: '제출완료' });
+    const inProgress = application({ id: 'a-progress', programId: 'p-1', status: '작성중' });
+    const result = buildDigest([p], [done, inProgress], [], PROFILE, TODAY);
+    assert.ok(result);
+    assert.match(result!, /복수지원건공고/);
+  });
+
+  test('지원건이 여럿이고 전부 제출완료/서류통과면 제외한다', () => {
+    const p = program({ id: 'p-1', applyEnd: '2026-09-15' });
+    const a1 = application({ id: 'a-1', programId: 'p-1', status: '제출완료' });
+    const a2 = application({ id: 'a-2', programId: 'p-1', status: '서류통과' });
+    assert.equal(buildDigest([p], [a1, a2], [], PROFILE, TODAY), null);
+  });
+});
+
+describe('selectDigestSections/shouldMentionHere - 실전 회귀: 제출완료 건이 @here를 울리면 안 된다', () => {
+  test('제출완료인데 D-1/D-day인 공고만 있으면 deadlineSoon이 비고 @here도 안 울린다', () => {
+    const submitted1 = program({ id: 'p-1', title: '모두의 창업 2차', applyEnd: '2026-09-15' }); // D-1
+    const a1 = application({ id: 'a-1', programId: 'p-1', status: '제출완료' });
+    const submitted2 = program({ id: 'p-2', title: '원티드 AI 챔피언십', applyEnd: '2026-09-16' }); // D-2
+    const a2 = application({ id: 'a-2', programId: 'p-2', status: '제출완료' });
+
+    const sections = selectDigestSections([submitted1, submitted2], [a1, a2], [], PROFILE, TODAY);
+    assert.equal(sections, null, '할 일이 남은 게 없으니 다이제스트 자체가 조용해야 한다');
+  });
+
+  test('제출완료 건과 별개로 작성중인 D-day 공고가 있으면 그것만 뜨고 그 공고로 인해 @here가 울린다', () => {
+    const submitted = program({ id: 'p-done', title: '제출완료건', applyEnd: '2026-09-14' }); // D-day
+    const aDone = application({ id: 'a-done', programId: 'p-done', status: '제출완료' });
+    const inProgress = program({ id: 'p-progress', title: '작성중건', applyEnd: '2026-09-14' }); // D-day
+    const aProgress = application({ id: 'a-progress', programId: 'p-progress', status: '작성중' });
+
+    const sections = selectDigestSections([submitted, inProgress], [aDone, aProgress], [], PROFILE, TODAY)!;
+    assert.ok(sections);
+    assert.equal(sections.deadlineSoon.length, 1);
+    assert.equal(sections.deadlineSoon[0]!.program.title, '작성중건');
+    assert.equal(shouldMentionHere(sections), true);
+  });
 });
 
 describe('buildDigest - 내부 마감 초과 미제출', () => {

@@ -222,7 +222,7 @@ export function buildBoard({ programs, applications, documents, profile, today }
       targetDaysLeft !== null &&
       targetDaysLeft < 0 &&
       !application.submittedAt &&
-      PRE_SUBMIT_STATUSES.includes(application.status);
+      isPreSubmitStatus(application.status);
     const ready = application.documentIds.filter((id) => documentById.get(id)?.ready).length;
     const announceOverdue =
       program?.announceDate !== undefined &&

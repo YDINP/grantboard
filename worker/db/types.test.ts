@@ -234,9 +234,9 @@ function assertNoFieldLost(
 }
 
 test('data/*.json의 모든 레코드가 repo 직렬화/역직렬화 왕복을 그대로 통과한다', async (t) => {
-  await t.test('programs (10건)', () => {
+  await t.test('programs (12건)', () => {
     const rows = readJson('data/programs.json');
-    assert.equal(rows.length, 10, '실제 조사로 확인한 공고 10건이 그대로 있어야 합니다.');
+    assert.equal(rows.length, 12, '실제 조사로 확인한 공고 12건이 그대로 있어야 합니다.');
     for (const raw of rows) {
       const domain = withDefaults(raw, 'programs') as any;
       const roundTripped = toProgram(programToRow(domain));
