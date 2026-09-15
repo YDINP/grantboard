@@ -28,5 +28,15 @@
     "resultAt": "2026-08-29",
     "documentIds": [],
     "note": "페이퍼닥 우수상 수상 (10팀 중 1팀, 상금 30만원). 시상식 현장 참석 필수 조항 있었음."
+  },
+  {
+    "id": "app-modu-startup-2026-2nd",
+    "programId": "modu-startup-2026-2nd",
+    "status": "검토중",
+    "owner": "에이든",
+    "priority": "high",
+    "targetSubmitDate": "2026-09-16",
+    "documentIds": [],
+    "note": "⚠️ 마감 2026-09-17 16:00. 비수도권 70% 선발 목표라 서울은 쿼터상 불리. 1차 지원 이력이 있다면 중복 지원 가능 여부 확인 필요."
   }
 ]
