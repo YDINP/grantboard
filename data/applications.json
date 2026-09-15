@@ -14,20 +14,6 @@
     "note": "접수증 수령 확인. 발표일까지 추가 제출 요구 없음"
   },
   {
-    "id": "app-mock-startup-2026",
-    "programId": "mock-startup-2026",
-    "status": "제출완료",
-    "owner": "J",
-    "priority": "mid",
-    "targetSubmitDate": "2026-08-29",
-    "submittedAt": "2026-08-25",
-    "documentIds": [
-      "doc-plan",
-      "doc-employment-cert"
-    ],
-    "note": ""
-  },
-  {
     "id": "app-pre-startup-2026",
     "programId": "pre-startup-2026",
     "status": "작성중",

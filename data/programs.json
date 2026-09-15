@@ -1,75 +1,41 @@
 [
   {
     "id": "govtech-2026",
-    "title": "[샘플] GovTech 공모전",
-    "organizer": "(샘플 — 실제 아님)",
-    "sourceUrl": "#",
+    "title": "2026년 GovTech 창업경진대회",
+    "organizer": "과학기술정보통신부",
+    "sourceUrl": "https://k-govtech.kr/",
     "category": "공모전",
-    "applyStart": "2026-08-01",
-    "applyEnd": "2026-09-30",
-    "applyEndTime": "18:00",
-    "announceDate": "2026-10-15",
-    "supportAmount": "최대 500만원",
+    "applyStart": "2026-08-20",
+    "applyEnd": "2026-09-21",
+    "supportAmount": "2개 트랙 14개팀 총 7,000만원 + 차년도 지원사업 우대",
     "tags": [
-      "샘플데이터",
-      "공공데이터",
-      "해커톤"
+      "공공서비스",
+      "GovTech"
     ],
     "source": "manual",
     "eligibility": {
       "businessRegistration": "무관",
-      "regions": [
-        "서울",
-        "경기",
-        "인천"
-      ]
-    }
-  },
-  {
-    "id": "mock-startup-2026",
-    "title": "[샘플] 모의창업 프로그램",
-    "organizer": "(샘플 — 실제 아님)",
-    "sourceUrl": "#",
-    "category": "교육프로그램",
-    "applyStart": "2026-07-15",
-    "applyEnd": "2026-08-31",
-    "announceDate": "2026-09-10",
-    "supportAmount": "교육비 전액 지원",
-    "tags": [
-      "샘플데이터",
-      "예비창업",
-      "교육"
-    ],
-    "source": "manual",
-    "eligibility": {
-      "businessRegistration": "무관",
-      "maxFounderAge": 39,
-      "regions": [
-        "경기"
-      ]
+      "note": "예비창업자 = 공고일(2026-08-20) 기준 사업자등록·법인등기 미보유자 → 아이디어기획/제품서비스개발 두 트랙 모두 지원 가능(초기창업기업은 제품·서비스개발 트랙만). ⚠️ 마감 시각이 원문에 명시 없음 — 확인 필요. ⚠️ 주제가 공공서비스 혁신이라 공공기관·법원·행정 계약서 검토 각도로 재구성해야 적합도가 높음. 2차 발표평가 11월 중, 시상식 12월(구체 일자 미확인)."
     }
   },
   {
     "id": "pre-startup-2026",
-    "title": "[샘플] 예비창업패키지",
-    "organizer": "(샘플 — 실제 아님)",
-    "sourceUrl": "#",
+    "title": "예비창업패키지 (2026년)",
+    "organizer": "창업진흥원 (중소벤처기업부)",
+    "sourceUrl": "https://www.bizinfo.go.kr/sii/siia/selectSIIA200Detail.do?pblancId=PBLN_000000000119019",
     "category": "정부지원사업",
-    "applyStart": "2026-09-01",
-    "applyEnd": "2026-10-20",
+    "applyStart": "2026-03-06",
+    "applyEnd": "2026-03-24",
     "applyEndTime": "16:00",
-    "announceDate": "2026-11-30",
-    "supportAmount": "최대 1억원",
+    "supportAmount": "약 300명 내외 (금액은 공고 원문 PDF 확인 필요)",
     "tags": [
-      "샘플데이터",
       "예비창업",
       "사업화자금"
     ],
     "source": "manual",
     "eligibility": {
       "businessRegistration": "불가",
-      "maxFounderAge": 39,
-      "note": "중복지원 제한: 창업사업화 지원사업 기수혜자는 제외될 수 있습니다. 공고문의 '지원 제외 대상' 항목을 직접 확인할 것."
+      "note": "신청자 명의 사업자등록증 미보유 + 법인 대표권 미보유 (기준일 2026-01-22). 2026년 회차는 종료됨 — 2027년 공고 미확인. 다음 회차를 노린다면 1~3월을 주시할 것."
     }
   },
   {
@@ -113,6 +79,125 @@
       "businessRegistration": "무관",
       "maxFounderAge": 39,
       "note": "만 39세 이하 청년, 개인 또는 최대 4인 팀. 시상식 현장 참석 필수 — 온라인 참석은 수상 취소 사유."
+    }
+  },
+  {
+    "id": "modu-startup-2026-2nd",
+    "title": "2026년 2차 모두의 창업 프로젝트",
+    "organizer": "중소벤처기업부 (수행: 창업진흥원)",
+    "sourceUrl": "https://www.bizinfo.go.kr/sii/siia/selectSIIA200Detail.do?pblancId=PBLN_000000000125611",
+    "category": "정부지원사업",
+    "applyStart": "2026-08-20",
+    "applyEnd": "2026-09-17",
+    "applyEndTime": "16:00",
+    "supportAmount": "총 1만명 내외 선발 / 2라운드 MVP 제작비 최대 2,000만원",
+    "tags": [
+      "예비창업",
+      "AI",
+      "MVP"
+    ],
+    "source": "manual",
+    "eligibility": {
+      "businessRegistration": "무관",
+      "note": "예비창업자 80% 이상 선발 방침 (이종창업자는 업력 7년 이내 일부 참여). ⚠️ 비수도권 70% 이상 선발 목표로 운영되어 서울 소재는 쿼터상 불리 — 자격 배제는 아님. 결과발표일은 공고문에 명시 없음(미확인). 지원금액·발표일은 첨부 PDF 원문 확인 필요."
+    }
+  },
+  {
+    "id": "early-startup-2026",
+    "title": "초기창업패키지 (2026년)",
+    "organizer": "창업진흥원 (중소벤처기업부)",
+    "sourceUrl": "https://www.bizinfo.go.kr/sii/siia/selectSIIA200Detail.do?pblancId=PBLN_000000000117819",
+    "category": "정부지원사업",
+    "applyStart": "2026-01-23",
+    "applyEnd": "2026-02-13",
+    "supportAmount": "최대 1억원 (총 400개사 내외, 평균액은 출처마다 상이)",
+    "tags": [
+      "초기창업",
+      "사업화자금"
+    ],
+    "source": "manual",
+    "eligibility": {
+      "businessRegistration": "필요",
+      "maxBusinessAgeMonths": 36,
+      "note": "창업 후 3년 이내 기업 대표자 대상 — 사업자등록이 이미 있어야 함. 지금은 대상이 아니지만 법인/개인사업자 등록 후 노릴 수 있는 트랙이라 남겨둠. 2026년 회차 종료, 2027년 미확인."
+    }
+  },
+  {
+    "id": "youth-startup-academy-2026",
+    "title": "청년창업사관학교 기본과정 (2026년)",
+    "organizer": "중소벤처기업진흥공단",
+    "sourceUrl": "https://bizinfo.go.kr/sii/siia/selectSIIA200Detail.do?pblancId=PBLN_000000000118036",
+    "category": "정부지원사업",
+    "applyStart": "2026-01-30",
+    "applyEnd": "2026-02-13",
+    "applyEndTime": "16:00",
+    "supportAmount": "사업화자금 평균 0.7억, 최대 1억원",
+    "tags": [
+      "청년창업",
+      "사업화자금"
+    ],
+    "source": "manual",
+    "eligibility": {
+      "businessRegistration": "무관",
+      "maxFounderAge": 39,
+      "note": "대표자 만 39세 이하. 창업 후 3년 이내(경험창업자 7년 이내)가 기본이라 기창업 트랙 성격 — 예비창업자 별도 전형 여부는 공고 원문 확인 필요(미확인). 2026년 회차 종료, 다음 회차 미확인."
+    }
+  },
+  {
+    "id": "primer-batch-30",
+    "title": "프라이머 배치 30기 / 크리에이터 이코노미 파운더 3기",
+    "organizer": "프라이머",
+    "sourceUrl": "https://apply.primer.kr/",
+    "category": "기타",
+    "applyStart": "2026-12-01",
+    "applyEnd": "2026-12-31",
+    "supportAmount": "극초기 스타트업 대상 6개월 배치 프로그램 (초기투자·보육)",
+    "tags": [
+      "액셀러레이터",
+      "배치"
+    ],
+    "source": "manual",
+    "eligibility": {
+      "businessRegistration": "무관",
+      "note": "⚠️ 법인 미설립 팀 가능 여부가 페이지에 명시돼 있지 않음(미확인). 과거 배치에 예비창업팀이 들어간 이력이 있어 문의 권장(kikiki@primer.kr). 12월 접수라 지금부터 준비 가능."
+    }
+  },
+  {
+    "id": "k-startup-league-2026",
+    "title": "2026년 올해의 K-스타트업 혁신창업리그",
+    "organizer": "중소벤처기업부 (창업진흥원)",
+    "sourceUrl": "https://www.k-startup.go.kr/",
+    "category": "경진대회",
+    "applyStart": "2026-04-22",
+    "applyEnd": "2026-05-20",
+    "supportAmount": "종합예선 상금·상장 + 「올해의 K-스타트업」 통합본선 진출",
+    "tags": [
+      "경진대회",
+      "예비창업"
+    ],
+    "source": "manual",
+    "eligibility": {
+      "businessRegistration": "무관",
+      "note": "통합공고일 기준 3년 이내 창업기업(예비창업자 포함). 옛 「도전! K-스타트업」. 2026년 회차 종료 — 2027년 통합공고 시점 미확인(2026년은 3/27 통합공고 → 4/22 접수)."
+    }
+  },
+  {
+    "id": "moleg-legal-data-2nd",
+    "title": "제2회 법령데이터 활용 아이디어 공모전",
+    "organizer": "법제처",
+    "sourceUrl": "https://moleg.go.kr/board.es?act=view&bid=0010&list_no=147724&mid=a10504000000",
+    "category": "공모전",
+    "applyStart": "2026-04-01",
+    "applyEnd": "2026-05-29",
+    "supportAmount": "상금 총 240만원 수준 (소액)",
+    "tags": [
+      "리걸테크",
+      "법령데이터"
+    ],
+    "source": "manual",
+    "eligibility": {
+      "businessRegistration": "무관",
+      "note": "리걸테크 정체성과 가장 직접 맞닿는 공모전. 2026년 제2회 종료 — 제3회(2027) 공고는 2026-09 기준 없음(미확인). 법제처 공지사항 주기 모니터링 권장."
     }
   }
 ]
