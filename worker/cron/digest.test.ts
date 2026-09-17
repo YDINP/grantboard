@@ -170,12 +170,15 @@ describe('sendDigest', () => {
       assert.deepEqual(messageCall?.body?.allowed_mentions, { parse: ['everyone'] });
     });
 
-    test('D-1 마감이 있으면 @here로 부른다', async (t) => {
+    // D-1(내일 마감)은 KST 12:00 전용 알림(worker/cron/deadlineTomorrow.ts)이 전담한다 — 08:30
+    // 다이제스트가 D-1까지 @here로 울리면 같은 건으로 하루 두 번 멘션하게 된다.
+    test('D-1 마감만 있으면 08:30 다이제스트는 조용히 게시만 하고 @here로 부르지 않는다', async (t) => {
       const { calls } = mockDiscordFetch(t);
       await sendDigest(fakeEnv(urgentTables(D_MINUS_1)), { now: NOW });
 
       const messageCall = calls.find((c) => !c.url.endsWith('/threads'));
-      assert.equal(messageCall?.body?.content, '@here');
+      assert.equal(messageCall?.body?.content, undefined, 'D-1은 12:00 전용 알림이 담당하므로 08:30은 멘션하지 않는다');
+      assert.deepEqual(messageCall?.body?.allowed_mentions, { parse: [] });
     });
 
     test('D-2 마감만 있으면 조용히 게시만 하고 멘션하지 않는다', async (t) => {

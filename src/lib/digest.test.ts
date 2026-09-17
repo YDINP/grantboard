@@ -368,10 +368,12 @@ describe('shouldMentionHere', () => {
     assert.equal(shouldMentionHere(sections), true);
   });
 
-  test('D-1 마감이 있으면 @here 대상이다', () => {
+  // D-1(내일 마감)은 KST 12:00 전용 알림(deadlineTomorrow.ts)이 전담한다. 08:30 다이제스트가
+  // D-1까지 @here로 울리면 같은 건으로 하루 두 번 멘션하게 되므로 여기서는 더 이상 울리지 않는다.
+  test('D-1 마감만 있으면 @here 대상이 아니다 — 12:00 전용 알림이 담당한다', () => {
     const p = program({ id: 'p-d1', applyEnd: '2026-09-15' });
     const sections = selectDigestSections([p], [], [], PROFILE, TODAY)!;
-    assert.equal(shouldMentionHere(sections), true);
+    assert.equal(shouldMentionHere(sections), false);
   });
 
   test('D-2~D-3 마감만 있으면 @here 대상이 아니다 — 조용히 게시만 한다', () => {
