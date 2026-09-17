@@ -77,6 +77,17 @@ export interface ProgramView {
   applications: ApplicationView[];
 }
 
+/**
+ * 이 공고가 "아직 마감 전에 할 일이 남았는지" — 지원건이 아예 없거나(지원 여부 결정 자체가 할 일),
+ * 하나라도 제출 전 단계(PRE_SUBMIT_STATUSES)면 true. src/lib/digest.ts의 마감임박 섹션(3일 이내)과
+ * src/lib/deadlineTomorrow.ts의 내일마감 전용 알림(daysLeft===1)이 이 판정을 공유한다 — 두 알림이
+ * "할 일이 남았는지"를 서로 다르게 판단하면 한쪽엔 뜨고 한쪽엔 안 뜨는 불일치가 생긴다.
+ */
+export function hasPreSubmitWork(view: ProgramView): boolean {
+  if (view.applications.length === 0) return true;
+  return view.applications.some((v) => isPreSubmitStatus(v.application.status));
+}
+
 export interface DocumentUsage {
   application: Application;
   program: Program | null;

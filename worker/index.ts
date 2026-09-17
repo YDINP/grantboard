@@ -11,10 +11,12 @@ import { handleInteraction } from './discord/interactions.ts';
 import { handleWeb } from './web/handler.ts';
 import { runCollect } from './cron/collect.ts';
 import { sendDigest } from './cron/digest.ts';
+import { sendDeadlineTomorrow } from './cron/deadlineTomorrow.ts';
 
 /** wrangler.toml [triggers].crons와 문자열이 정확히 일치해야 한다. 오타가 나면 조용히 아무것도 안 돈다. */
 const CRON_COLLECT = '0 23 * * *'; // KST 08:00
 const CRON_DIGEST = '30 23 * * *'; // KST 08:30
+const CRON_DEADLINE_TOMORROW = '0 3 * * *'; // KST 12:00 (당일, 날짜 안 바뀜)
 
 function isCalendarPath(pathname: string): boolean {
   return pathname === '/' || pathname === '/calendar' || pathname.startsWith('/calendar/');
@@ -63,6 +65,15 @@ export default {
         ctx.waitUntil(
           sendDigest(env, { dryRun: env.CRON_DRY_RUN === 'true' }).catch((err) => {
             console.error(`[cron:digest] 예기치 못한 예외로 중단됨: ${err instanceof Error ? err.message : String(err)}`);
+          }),
+        );
+        break;
+
+      case CRON_DEADLINE_TOMORROW:
+        console.log(`[cron] ${event.cron} (KST 12:00) — 내일(D-1) 마감 알림`);
+        ctx.waitUntil(
+          sendDeadlineTomorrow(env, { dryRun: env.CRON_DRY_RUN === 'true' }).catch((err) => {
+            console.error(`[cron:deadlineTomorrow] 예기치 못한 예외로 중단됨: ${err instanceof Error ? err.message : String(err)}`);
           }),
         );
         break;

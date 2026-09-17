@@ -10,7 +10,7 @@
 import {
   buildBoard,
   isActiveStatus,
-  isPreSubmitStatus,
+  hasPreSubmitWork,
   type BoardInput,
   type ApplicationView,
   type ProgramView,
@@ -79,12 +79,11 @@ export function selectDigestSections(
   //    대신 isPreSubmitStatus(PRE_SUBMIT_STATUSES: 검토중/준비/작성중)로 좁힌다.
   //    지원건이 아예 없는 공고는 유지한다 — "지원할지 아직 안 정했다"는 것 자체가 마감 전에
   //    결정해야 할 일이라 가장 놓치기 쉬운 경고이기 때문이다. 지원건이 여럿이면 하나라도
-  //    제출 전 단계면 유지한다.
-  const deadlineSoon: ProgramView[] = board.programs.filter((v) => {
-    if (v.deadline.state !== 'urgent') return false;
-    if (v.applications.length === 0) return true;
-    return v.applications.some((a) => isPreSubmitStatus(a.application.status));
-  });
+  //    제출 전 단계면 유지한다. 이 "할 일이 남았는지" 판정은 hasPreSubmitWork(board.ts)로 뽑아
+  //    src/lib/deadlineTomorrow.ts(D-1 전용 알림)와 공유한다.
+  const deadlineSoon: ProgramView[] = board.programs.filter(
+    (v) => v.deadline.state === 'urgent' && hasPreSubmitWork(v),
+  );
 
   // 2) 내부 마감(targetSubmitDate)이 지났는데 아직 미제출 — 가장 실질적인 경고.
   const overdueUnsubmitted: ApplicationView[] = board.applications
@@ -150,14 +149,17 @@ export function digestUrgency(sections: DigestSections): DigestUrgency {
 }
 
 /**
- * @here로 부를지. 실제 마감이 D-1 또는 D-day일 때만 true — 그 외에는 절대 멘션하지 않는다.
+ * @here로 부를지. 실제 마감이 D-day(오늘)일 때만 true — 그 외에는 절대 멘션하지 않는다.
  * (팀 요청: 매일 같은 방식으로 멘션하면 알림 피로로 채널을 음소거하게 되고, 정작 급한 날에도
  * 아무도 안 보게 된다. 서류만료·내부마감초과·발표경과는 급하지만 "오늘 당장 제출해야 하는
  * 마감"은 아니므로 멘션 기준에서 뺀다. @everyone은 오프라인 멤버까지 깨우므로 절대 쓰지 않는다
- * — 이 함수는 애초에 @here 여부만 판단하고, @everyone은 선택지에 없다.)
+ * — 이 함수는 애초에 @here 여부만 판단하고, @everyone은 선택지에 없다.
+ *
+ * D-1(내일 마감)은 KST 12:00 전용 알림(src/lib/deadlineTomorrow.ts, worker/cron/deadlineTomorrow.ts)이
+ * 전담한다 — 08:30 다이제스트가 D-1까지 @here로 울리면 같은 건으로 하루 두 번 멘션하게 된다.)
  */
 export function shouldMentionHere(sections: DigestSections): boolean {
-  return sections.deadlineSoon.some((v) => v.deadline.daysLeft <= 1);
+  return sections.deadlineSoon.some((v) => v.deadline.daysLeft <= 0);
 }
 
 /**

@@ -18,6 +18,7 @@ migrations_dir = "migrations"
 crons = [
   "0 23 * * *",  # UTC 23:00 = KST 08:00 (익일) — K-Startup 공고 수집
   "30 23 * * *", # UTC 23:30 = KST 08:30 (익일) — D-day 다이제스트 발송
+  "0 3 * * *",   # UTC 03:00 = KST 12:00 (당일, 날짜 안 바뀜) — 내일(D-1) 마감 알림
 ]
 
 [observability]
