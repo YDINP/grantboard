@@ -180,8 +180,9 @@ export async function sendDigest(env: Env, options: SendDigestOptions = {}): Pro
     return { sent: false, message: embed.description ?? null };
   }
 
-  // @here는 "실제 마감(D-1/D-day)이 있을 때만" — @everyone은 이 코드 경로에 아예 없다(오프라인
-  // 멤버까지 깨우는 건 팀이 원하지 않는다). allowed_mentions을 명시해 이 사실을 강제한다.
+  // @here는 "오늘이 마감(D-day)일 때만". D-1은 KST 12:00 전용 알림이 전담하므로 여기서 울리지
+  // 않는다 — 같은 건으로 하루 두 번 멘션하지 않기 위해서다. @everyone은 이 코드 경로에 아예
+  // 없다(오프라인 멤버까지 깨우는 건 팀이 원하지 않는다). allowed_mentions로 그 사실을 강제한다.
   const payload: Record<string, unknown> = {
     embeds: [embed],
     allowed_mentions: { parse: mentionHere ? ['everyone'] : [] },
