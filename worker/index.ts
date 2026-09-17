@@ -12,11 +12,19 @@ import { handleWeb } from './web/handler.ts';
 import { runCollect } from './cron/collect.ts';
 import { sendDigest } from './cron/digest.ts';
 import { sendDeadlineTomorrow } from './cron/deadlineTomorrow.ts';
+import { sendDeadlineClosed } from './cron/deadlineClosed.ts';
 
 /** wrangler.toml [triggers].crons와 문자열이 정확히 일치해야 한다. 오타가 나면 조용히 아무것도 안 돈다. */
 const CRON_COLLECT = '0 23 * * *'; // KST 08:00
 const CRON_DIGEST = '30 23 * * *'; // KST 08:30
 const CRON_DEADLINE_TOMORROW = '0 3 * * *'; // KST 12:00 (당일, 날짜 안 바뀜)
+/**
+ * KST 09:00. deadlineState(schedule.ts)는 remaining < 0일 때만 'closed'로 넘어가므로,
+ * 마감 다음날 KST 자정이 되어야 비로소 "마감됐다"고 정직하게 말할 수 있다 — 그 다음
+ * 가장 이른 아침이 이 시각이다. 08:00 수집·08:30 다이제스트 뒤에 둬서 아침 알림 3개가
+ * 한꺼번에 몰리지 않게 했고, 12:00 D-1 알림보다는 앞서 그날의 "어제 마감된 것"부터 정리한다.
+ */
+const CRON_DEADLINE_CLOSED = '0 0 * * *'; // KST 09:00 (당일, 날짜 안 바뀜)
 
 function isCalendarPath(pathname: string): boolean {
   return pathname === '/' || pathname === '/calendar' || pathname.startsWith('/calendar/');
@@ -74,6 +82,15 @@ export default {
         ctx.waitUntil(
           sendDeadlineTomorrow(env, { dryRun: env.CRON_DRY_RUN === 'true' }).catch((err) => {
             console.error(`[cron:deadlineTomorrow] 예기치 못한 예외로 중단됨: ${err instanceof Error ? err.message : String(err)}`);
+          }),
+        );
+        break;
+
+      case CRON_DEADLINE_CLOSED:
+        console.log(`[cron] ${event.cron} (KST 09:00) — 마감된 공고 알림`);
+        ctx.waitUntil(
+          sendDeadlineClosed(env, { dryRun: env.CRON_DRY_RUN === 'true' }).catch((err) => {
+            console.error(`[cron:deadlineClosed] 예기치 못한 예외로 중단됨: ${err instanceof Error ? err.message : String(err)}`);
           }),
         );
         break;

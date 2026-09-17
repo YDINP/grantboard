@@ -88,6 +88,17 @@ export function hasPreSubmitWork(view: ProgramView): boolean {
   return view.applications.some((v) => isPreSubmitStatus(v.application.status));
 }
 
+/**
+ * 제출 이후 단계(제출완료/서류통과/최종선정/탈락)인지 — "실제로 제출은 했는지"만 본다. 결과가
+ * 나왔는지(최종선정/탈락)와는 무관하게 true다. isPreSubmitStatus의 반대는 아니다 — '미지원'은
+ * 어느 쪽도 아니다(제출 전 단계도, 제출 이후 단계도 아니다).
+ * src/lib/deadlineClosed.ts(마감 통지 알림)가 "제출완료"/"미제출"/"미지원" 3분류 중 "제출완료"를
+ * 가를 때 이 술어를 쓴다.
+ */
+export function hasSubmittedStatus(status: ApplicationStatus): boolean {
+  return !isPreSubmitStatus(status) && status !== '미지원';
+}
+
 export interface DocumentUsage {
   application: Application;
   program: Program | null;
