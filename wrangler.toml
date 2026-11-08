@@ -17,10 +17,13 @@ migrations_dir = "migrations"
 [triggers]
 crons = [
   "0 23 * * *",  # UTC 23:00 = KST 08:00 (익일) — K-Startup 공고 수집
-  "30 23 * * *", # UTC 23:30 = KST 08:30 (익일) — D-day 다이제스트 발송
   "0 3 * * *",   # UTC 03:00 = KST 12:00 (당일, 날짜 안 바뀜) — 내일(D-1) 마감 알림
   "0 0 * * *",   # UTC 00:00 = KST 09:00 (당일, 날짜 안 바뀜) — 마감된 공고 알림
 ]
+# 중단됨 (2026-11-08, 사용자 요청): 매일 D-day 다이제스트
+#   "30 23 * * *", # UTC 23:30 = KST 08:30 (익일) — D-day 다이제스트 발송
+# 다시 켜려면 위 한 줄을 crons 배열에 되돌리고 배포하면 된다.
+# worker/index.ts 의 CRON_DIGEST 분기와 sendDigest()는 그대로 두었다 — 트리거만 뗀 것이다.
 
 [observability]
 enabled = true
