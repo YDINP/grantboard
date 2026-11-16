@@ -197,6 +197,13 @@ node scripts/register-commands.mjs --dry-run   # 전송하지 않고 등록될 �
 디스코드 개발자 포털의 **Interactions Endpoint URL**은 `https://grantboard.benclaude-toss.workers.dev/interactions`
 로 설정합니다. 이 URL에 GET/HEAD로 접근하면 404, POST 이외 메서드는 405를 돌려줍니다.
 
+> ⚠️ **로컬에서 Discord REST API를 직접 호출할 때는 `User-Agent`를 봇 규격으로 보내야 합니다.**
+> `DiscordBot (<url>, <version>)` 형식이 아니면 **응답 본문이 빈 403**이 돌아옵니다 — Discord의
+> JSON 에러(`{"message":"Missing Access","code":50001}`)가 아니라 앞단에서 차단된 것이라,
+> 권한 문제로 착각하기 쉽습니다(봇이 Administrator여도 똑같이 403). PowerShell의
+> `Invoke-RestMethod` 기본 UA가 여기 걸립니다. Worker 런타임의 `fetch`는 자체 UA를 붙이므로
+> `worker/discord/discordApi.ts` 경로에서는 이 문제가 없습니다.
+
 ### 자금 채널 (`/자금`)
 
 `/자금 현황`은 마감 전 + 자격에 안 걸리는 공고의 자금을 성격별로 합산해 보여줍니다.
