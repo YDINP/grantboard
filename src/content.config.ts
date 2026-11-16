@@ -20,6 +20,27 @@ const programs = defineCollection({
       .optional(),
     announceDate: z.string().date().optional(),
     supportAmount: z.string().optional(),
+    // 돈의 성격과 크기. supportAmount(자유 문장)와 둘 다 남긴다 —
+    // "총 7,000만원 / 14팀" 같은 문장을 숫자 하나로 뭉개면 총 규모와 1팀 몫의 구분이 사라진다.
+    // supportAmount는 사람이 읽는 원문, funding은 기계가 더하는 값이다.
+    funding: z
+      .object({
+        // 성격별로 판단 기준이 완전히 달라서 금액만으로는 비교가 불가능하다.
+        //   상금       — 지분 희석 없음, 집행 증빙 없음, 사업자등록 요구가 적음
+        //   사업화자금 — 협약·집행 증빙·목적외 사용 제한
+        //   지분투자   — 희석 발생
+        //   크레딧     — 현금 아님, 용처 고정 (이 팀에는 OCR·LLM 호출비라 현금에 준한다)
+        //   융자       — 부채. 대개 사업자등록 필수
+        // ⚠️ 값·순서는 worker/db/types.ts의 FUNDING_TYPES와 같아야 한다 (그쪽 주석 참고).
+        type: z.enum(['상금', '크레딧', '사업화자금', '지분투자', '융자']),
+        // ⚠️ 총 지원규모가 아니라 **선정 시 1팀이 받는 금액**(원).
+        // 등급제 공모전은 최하위 입상 등급을 적는다 — 대상 금액을 적으면 합계가 희망사항이 된다.
+        // 모르면 비워둔다. 추정값을 넣지 말 것(합계가 조용히 거짓이 된다).
+        amountKrw: z.number().int().nonnegative().optional(),
+        // 자기부담금 비율(%). 바우처형은 0이 아니다. 실수령 추정은 src/lib/funding.ts가 계산한다.
+        selfBurdenPct: z.number().min(0).max(100).optional(),
+      })
+      .optional(),
     tags: z.array(z.string()).default([]),
     // 자동수집분 구분용. 기본은 수동 입력.
     source: z.enum(['manual', 'k-startup', 'bizinfo']).default('manual'),

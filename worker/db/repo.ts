@@ -11,6 +11,7 @@
  * console.error로 남기고 getDataIntegrityIssues()에 기록해 화면/봇이 드러낼 수 있게 한다.
  */
 
+import { FUNDING_TYPES } from './types.ts';
 import type {
   Application,
   BoardData,
@@ -18,6 +19,7 @@ import type {
   OwnerMapping,
   Program,
   ProgramEligibility,
+  ProgramFunding,
   TeamProfile,
 } from './types.ts';
 
@@ -135,6 +137,19 @@ function isPlainObject(value: unknown): value is ProgramEligibility {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * funding 컬럼 가드. eligibility와 달리 `type`까지 검사한다 —
+ * eligibility는 모든 필드가 optional이라 빈 객체도 유효하지만, funding은 type이 없으면
+ * 성격 불명인 금액이 되어 집계가 거짓말을 한다. 깨진 값은 "자금 정보 없음"으로 떨어뜨리는 게 맞다.
+ * null을 허용 값에 넣은 이유는 parseJsonColumn의 fallback이 T여야 하기 때문이다(아래 호출부 참고).
+ */
+function isFundingOrNull(value: unknown): value is ProgramFunding | null {
+  if (value === null) return true;
+  if (typeof value !== 'object' || Array.isArray(value)) return false;
+  const type = (value as { type?: unknown }).type;
+  return typeof type === 'string' && (FUNDING_TYPES as readonly string[]).includes(type);
+}
+
 /** SQLite에는 boolean이 없다. 0/1로 저장하고 여기서만 환원한다. */
 function toBool(value: unknown): boolean {
   return value === 1 || value === true || value === '1';
@@ -164,6 +179,7 @@ export interface ProgramRow {
   apply_end_time: string | null;
   announce_date: string | null;
   support_amount: string | null;
+  funding: string | null;
   source: string;
   collected_at: string | null;
   eligibility: string | null;
@@ -176,6 +192,14 @@ export function toProgram(row: ProgramRow): Program {
   const eligibility = row.eligibility
     ? parseJsonColumn<ProgramEligibility>(row.eligibility, {}, isPlainObject, { ...ctx, column: 'eligibility' })
     : undefined;
+  // 0004 마이그레이션 전에 만들어진 행에는 funding 컬럼이 없다(SELECT가 undefined를 준다) — NULL과 같게 다룬다.
+  // 파싱 실패나 type 누락은 fallback null → undefined로 떨어진다. 성격 불명인 금액을
+  // 집계에 넣는 것보다 "자금 정보 없음"으로 두는 쪽이 안전하다 (parseJsonColumn이 무결성 이슈를 기록한다).
+  const funding =
+    parseJsonColumn<ProgramFunding | null>(row.funding, null, isFundingOrNull, {
+      ...ctx,
+      column: 'funding',
+    }) ?? undefined;
 
   return compact({
     id: row.id,
@@ -188,6 +212,7 @@ export function toProgram(row: ProgramRow): Program {
     applyEndTime: opt(row.apply_end_time),
     announceDate: opt(row.announce_date),
     supportAmount: opt(row.support_amount),
+    funding,
     tags: parseJsonColumn<string[]>(row.tags, [], isStringArray, { ...ctx, column: 'tags' }),
     source: row.source as Program['source'],
     collectedAt: opt(row.collected_at),
@@ -282,7 +307,7 @@ export function toTeamProfile(row: TeamProfileRow): TeamProfile {
 
 export const PROGRAM_COLUMNS = [
   'id', 'title', 'organizer', 'source_url', 'category', 'apply_start', 'apply_end',
-  'apply_end_time', 'announce_date', 'support_amount', 'source', 'collected_at',
+  'apply_end_time', 'announce_date', 'support_amount', 'funding', 'source', 'collected_at',
   'eligibility', 'tags', 'alias_titles',
 ] as const;
 
@@ -298,6 +323,7 @@ export function programToRow(p: Program): ProgramRow {
     apply_end_time: p.applyEndTime ?? null,
     announce_date: p.announceDate ?? null,
     support_amount: p.supportAmount ?? null,
+    funding: p.funding ? JSON.stringify(p.funding) : null,
     source: p.source,
     collected_at: p.collectedAt ?? null,
     eligibility: p.eligibility ? JSON.stringify(p.eligibility) : null,
@@ -370,7 +396,7 @@ export function teamProfileToRow(profile: TeamProfile): TeamProfileRow {
 // 페이지를 다시 그려도 순서가 흔들리지 않게 한다.
 const SELECT_PROGRAMS = `
   SELECT id, title, organizer, source_url, category, apply_start, apply_end, apply_end_time,
-         announce_date, support_amount, source, collected_at, eligibility, tags, alias_titles
+         announce_date, support_amount, funding, source, collected_at, eligibility, tags, alias_titles
     FROM programs
    ORDER BY apply_end ASC, id ASC`;
 
@@ -400,7 +426,7 @@ export async function getProgram(db: D1Database, id: string): Promise<Program | 
   const row = await db
     .prepare(
       `SELECT id, title, organizer, source_url, category, apply_start, apply_end, apply_end_time,
-              announce_date, support_amount, source, collected_at, eligibility, tags, alias_titles
+              announce_date, support_amount, funding, source, collected_at, eligibility, tags, alias_titles
          FROM programs WHERE id = ?`,
     )
     .bind(id)
@@ -417,9 +443,9 @@ export async function upsertProgram(db: D1Database, p: Program): Promise<void> {
   await db
     .prepare(
       `INSERT INTO programs (id, title, organizer, source_url, category, apply_start, apply_end,
-                             apply_end_time, announce_date, support_amount, source, collected_at,
+                             apply_end_time, announce_date, support_amount, funding, source, collected_at,
                              eligibility, tags, alias_titles)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
        ON CONFLICT(id) DO UPDATE SET
          title = excluded.title,
          organizer = excluded.organizer,
@@ -430,6 +456,7 @@ export async function upsertProgram(db: D1Database, p: Program): Promise<void> {
          apply_end_time = excluded.apply_end_time,
          announce_date = excluded.announce_date,
          support_amount = excluded.support_amount,
+         funding = excluded.funding,
          source = excluded.source,
          collected_at = excluded.collected_at,
          eligibility = excluded.eligibility,

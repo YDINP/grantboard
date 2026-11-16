@@ -33,6 +33,10 @@ export interface ProgramRecord {
   source: 'manual' | AutoSource;
   collectedAt?: string;
   eligibility?: Record<string, unknown>;
+  // 자금 정보. 자동수집 소스(K-Startup·기업마당)는 이 값을 주지 않으므로 사람이 손으로 넣는다.
+  // 그래서 UPDATABLE_FIELDS에 **일부러 넣지 않았다** — 넣으면 다음날 크론이 손으로 채운 금액을
+  // 지워버린다(eligibility와 달리 자동수집이 대체할 값이 아예 없다). 그쪽 주석 참고.
+  funding?: Record<string, unknown>;
   // manual 행 전용. 자동수집 공고가 이 제목들 중 하나로 들어오면 같은 공고로 보고
   // 신규 추가 대신 이 manual 행을 유지한 채 스킵한다. mergePrograms 참고.
   aliasTitles?: string[];

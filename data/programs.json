@@ -8,6 +8,10 @@
     "applyStart": "2026-08-20",
     "applyEnd": "2026-09-21",
     "supportAmount": "총 7,000만원 / 2개 트랙 각 7팀(총 14팀). 아이디어기획트랙 대상 800만·최우수 400·우수 300·장려 150 / 제품서비스개발트랙 대상 1,500만·최우수 800·우수 400·장려 300",
+    "funding": {
+      "type": "상금",
+      "amountKrw": 1500000
+    },
     "tags": [
       "공공서비스",
       "GovTech"
@@ -28,6 +32,9 @@
     "applyEnd": "2026-03-24",
     "applyEndTime": "16:00",
     "supportAmount": "약 300명 내외 (금액은 공고 원문 PDF 확인 필요)",
+    "funding": {
+      "type": "사업화자금"
+    },
     "tags": [
       "예비창업",
       "사업화자금"
@@ -48,6 +55,10 @@
     "applyEnd": "2026-09-18",
     "announceDate": "2026-10-07",
     "supportAmount": "총 1,700만원 (대상 1,000 / 최우수 300 / 우수 3팀 각 100 / 인기상 100)",
+    "funding": {
+      "type": "상금",
+      "amountKrw": 1000000
+    },
     "tags": [
       "AI",
       "해커톤",
@@ -70,6 +81,10 @@
     "applyEndTime": "23:59",
     "announceDate": "2026-08-29",
     "supportAmount": "총 1,000만원 / 33팀 (우수상 10팀 각 30만원)",
+    "funding": {
+      "type": "상금",
+      "amountKrw": 300000
+    },
     "tags": [
       "AI",
       "수상"
@@ -91,6 +106,10 @@
     "applyEnd": "2026-09-17",
     "applyEndTime": "16:00",
     "supportAmount": "1R 창업활동자금 200만 → 2R MVP 제작비 최대 2,000만 → FINAL 상금 5억 + 투자연계 5억 이상 (최대 10억). 로컬트랙은 최대 1억 별도",
+    "funding": {
+      "type": "사업화자금",
+      "amountKrw": 2000000
+    },
     "tags": [
       "예비창업",
       "AI",
@@ -111,6 +130,9 @@
     "applyStart": "2026-01-23",
     "applyEnd": "2026-02-13",
     "supportAmount": "최대 1억원 (총 400개사 내외, 평균액은 출처마다 상이)",
+    "funding": {
+      "type": "사업화자금"
+    },
     "tags": [
       "초기창업",
       "사업화자금"
@@ -132,6 +154,10 @@
     "applyEnd": "2026-02-13",
     "applyEndTime": "16:00",
     "supportAmount": "사업화자금 평균 0.7억, 최대 1억원",
+    "funding": {
+      "type": "사업화자금",
+      "amountKrw": 70000000
+    },
     "tags": [
       "청년창업",
       "사업화자금"
@@ -152,6 +178,9 @@
     "applyStart": "2026-12-01",
     "applyEnd": "2026-12-31",
     "supportAmount": "극초기 스타트업 대상 6개월 배치 프로그램 (초기투자·보육)",
+    "funding": {
+      "type": "지분투자"
+    },
     "tags": [
       "액셀러레이터",
       "배치"
@@ -171,6 +200,9 @@
     "applyStart": "2026-04-22",
     "applyEnd": "2026-05-20",
     "supportAmount": "종합예선 상금·상장 + 「올해의 K-스타트업」 통합본선 진출",
+    "funding": {
+      "type": "상금"
+    },
     "tags": [
       "경진대회",
       "예비창업"
@@ -190,6 +222,9 @@
     "applyStart": "2026-04-01",
     "applyEnd": "2026-05-29",
     "supportAmount": "상금 총 240만원 수준 (소액)",
+    "funding": {
+      "type": "상금"
+    },
     "tags": [
       "리걸테크",
       "법령데이터"
@@ -211,6 +246,10 @@
     "applyEndTime": "16:00",
     "announceDate": "2026-10-30",
     "supportAmount": "총 6,000만원 — 대상 1팀 2,000만 / 우수 3팀 각 1,000만 / 장려 5팀 각 200만",
+    "funding": {
+      "type": "상금",
+      "amountKrw": 2000000
+    },
     "tags": [
       "핀테크",
       "AI"
@@ -230,6 +269,9 @@
     "applyStart": "2026-08-21",
     "applyEnd": "2026-09-30",
     "supportAmount": "총 2,800만원 (서비스개발 7점 + 아이디어발굴 3점) + 대상팀 글로벌 행사 참가비 최대 200만 + 클라우드 이용료·AI 개발툴 지원",
+    "funding": {
+      "type": "상금"
+    },
     "tags": [
       "AI",
       "사회문제"

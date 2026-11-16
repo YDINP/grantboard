@@ -31,7 +31,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -69,7 +69,17 @@ const readJson = (relativePath: string): any => JSON.parse(read(relativePath));
 const CONTENT_CONFIG = read('src/content.config.ts');
 const TEAM_PROFILE_SOURCE = read('src/lib/teamProfile.ts');
 const TYPES_SOURCE = read('worker/db/types.ts');
-const MIGRATION = read('migrations/0001_init.sql');
+/**
+ * 마이그레이션 전체를 적용 순서대로 이어붙인 것이 SQL 정본이다. 0001만 읽으면 이후
+ * ALTER TABLE ADD COLUMN으로 들어온 컬럼(0004의 programs.funding 등)을 놓친다.
+ * 파일 목록을 손으로 적지 않고 디렉터리를 읽어 정렬한다 — 새 마이그레이션을 추가하면서
+ * 이 배열을 고치는 걸 잊으면 테스트가 조용히 옛 스키마를 정본으로 믿게 된다.
+ */
+const MIGRATION = readdirSync(join(ROOT, 'migrations'))
+  .filter((name) => name.endsWith('.sql'))
+  .sort()
+  .map((name) => read(join('migrations', name)))
+  .join('\n');
 
 /** zod 출력 타입 기준의 optional: `.default()`가 있으면 값이 항상 채워지므로 optional이 아니다. */
 function optionalNames(fields: readonly SchemaField[]): string[] {

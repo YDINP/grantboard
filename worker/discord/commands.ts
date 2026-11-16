@@ -40,6 +40,23 @@ export const STATUS_CHOICES = [
 /** content.config.ts documents.kind와 동일한 값이어야 한다. */
 export const DOCUMENT_KIND_CHOICES = ['서식', '증빙', '기타'] as const;
 
+/**
+ * content.config.ts programs.funding.type과 동일한 값이어야 한다.
+ * 값·순서의 정본은 worker/db/types.ts의 FUNDING_TYPES다 — 여기서 재선언하지 않고 그대로 쓴다
+ * (types.ts는 'astro:content'를 import하지 않으므로 Worker 번들에서 안전하다).
+ */
+export { FUNDING_TYPES } from '../db/types.ts';
+import { FUNDING_TYPES } from '../db/types.ts';
+
+/** 성격별로 사용자가 바로 알아볼 설명. 선택지 이름에 붙여 오해(상금 vs 융자)를 줄인다. */
+const FUNDING_TYPE_LABELS: Record<(typeof FUNDING_TYPES)[number], string> = {
+  상금: '상금 — 지분·증빙 없음',
+  크레딧: '크레딧 — 현금 아님, 용처 고정',
+  사업화자금: '사업화자금 — 협약·집행 증빙',
+  지분투자: '지분투자 — 희석 발생',
+  융자: '융자 — 부채',
+};
+
 /** deadlineState 값 기준 필터. board.ts의 DeadlineState와 동일해야 한다. */
 const DEADLINE_STATE_CHOICES = [
   { name: '오늘/3일 이내 마감', value: 'urgent' },
@@ -59,6 +76,7 @@ export const COMMAND_NAMES = {
   ME: '나는',
   STATUS_BOARD: '현황',
   SCHEDULE: '일정',
+  FUNDING: '자금',
 } as const;
 
 /** /일정의 범위 옵션 값. scheduleTimeline.ts의 ScheduleScope와 같은 문자열이어야 한다. */
@@ -68,6 +86,11 @@ export const SCHEDULE_OWNER_OPTION = '담당';
 export const SCHEDULE_SCOPE_OPTION = '범위';
 
 export const PROGRAM_SUBCOMMANDS = { ADD: '추가', LIST: '목록', DELETE: '삭제' } as const;
+export const FUNDING_SUBCOMMANDS = { VIEW: '현황', SET: '설정' } as const;
+/** /자금 설정의 옵션 이름. 금액은 만원 단위로 받는다 — 원 단위로 받으면 0을 세다 틀린다. */
+export const FUNDING_TYPE_OPTION = '성격';
+export const FUNDING_AMOUNT_OPTION = '금액만원';
+export const FUNDING_BURDEN_OPTION = '자기부담';
 export const STATUS_SUBCOMMANDS = { CHANGE: '변경' } as const;
 export const DOCUMENT_SUBCOMMANDS = { LIST: '목록', ADD: '추가', COMPLETE: '완료', LINK: '연결' } as const;
 
@@ -209,6 +232,44 @@ export const COMMAND_DEFINITIONS = [
         description: '특정 담당자 이니셜만 보기',
         required: false,
         max_length: OWNER_MAX_LENGTH,
+      },
+    ],
+  },
+  {
+    name: COMMAND_NAMES.FUNDING,
+    type: ApplicationCommandType.CHAT_INPUT,
+    description: '자금 축 — 지금 노릴 수 있는 돈을 성격별로 합산',
+    options: [
+      {
+        type: ApplicationCommandOptionType.SUB_COMMAND,
+        name: FUNDING_SUBCOMMANDS.VIEW,
+        description: '마감 전 + 자격에 안 걸리는 공고의 자금을 성격별로 합산해 봅니다',
+      },
+      {
+        type: ApplicationCommandOptionType.SUB_COMMAND,
+        name: FUNDING_SUBCOMMANDS.SET,
+        description: '공고에 자금 성격·금액을 입력합니다 (입력 후 공고를 고릅니다)',
+        options: [
+          {
+            type: ApplicationCommandOptionType.STRING,
+            name: FUNDING_TYPE_OPTION,
+            description: '돈의 성격 — 금액만으로는 비교가 안 되므로 필수입니다',
+            required: true,
+            choices: FUNDING_TYPES.map((t) => ({ name: FUNDING_TYPE_LABELS[t], value: t })),
+          },
+          {
+            type: ApplicationCommandOptionType.STRING,
+            name: FUNDING_AMOUNT_OPTION,
+            description: '선정 시 1팀이 받는 금액(만원). 총 지원규모가 아닙니다. 모르면 비워두세요',
+            required: false,
+          },
+          {
+            type: ApplicationCommandOptionType.STRING,
+            name: FUNDING_BURDEN_OPTION,
+            description: '자기부담금 비율(%). 바우처형은 0이 아닙니다',
+            required: false,
+          },
+        ],
       },
     ],
   },

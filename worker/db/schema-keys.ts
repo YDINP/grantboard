@@ -147,15 +147,33 @@ const SQL_COLUMN_LINE = /^\s*([a-z_][a-z0-9_]*)\s+(TEXT|INTEGER|REAL|BLOB|NUMERI
  * `CREATE TABLE IF NOT EXISTS <table> ( ... );`의 컬럼 이름.
  * 타입 키워드를 요구하므로 여러 줄에 걸친 CHECK 제약이나 인덱스 정의에는 걸리지 않는다.
  */
+/**
+ * 테이블의 현재 컬럼 집합. CREATE TABLE 하나만 보지 않고 **이후 마이그레이션의
+ * ALTER TABLE ... ADD COLUMN까지 반영한다.**
+ *
+ * 왜 필요한가: 컬럼이 추가되는 통로는 0001의 CREATE TABLE이 아니라 새 마이그레이션 파일이다
+ * (0004_program_funding.sql의 funding처럼). CREATE TABLE만 읽으면 이 테스트가 "SQL 정본"이라고
+ * 믿는 집합이 실제 DB와 갈라지고, 그러면 스키마 드리프트를 잡으려고 만든 테스트가 거꾸로
+ * 드리프트를 강요한다. 호출자는 마이그레이션 파일들을 적용 순서대로 이어붙여 넘긴다.
+ *
+ * DROP COLUMN / RENAME COLUMN은 아직 쓴 적이 없어 처리하지 않는다 — 쓰게 되면 여기 추가할 것.
+ */
 export function sqlTableColumns(source: string, table: string): string[] {
   const clean = stripComments(source.replace(/^\s*--.*$/gm, ''));
   const match = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`).exec(clean);
   if (!match) throw new Error(`마이그레이션에서 테이블 '${table}'을 찾지 못했습니다.`);
-  return match[1]!
+  const created = match[1]!
     .split('\n')
     .map((line) => SQL_COLUMN_LINE.exec(line))
     .filter((found): found is RegExpExecArray => found !== null)
     .map((found) => found[1]!);
+
+  const added: string[] = [];
+  const alterRe = new RegExp(`ALTER\\s+TABLE\\s+${table}\\s+ADD\\s+COLUMN\\s+(\\w+)`, 'gi');
+  let alter: RegExpExecArray | null;
+  while ((alter = alterRe.exec(clean)) !== null) added.push(alter[1]!);
+
+  return [...created, ...added];
 }
 
 export function fieldNames(fields: readonly SchemaField[]): string[] {

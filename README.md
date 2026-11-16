@@ -12,7 +12,8 @@ Cloudflare Workers 위에서 돌아가고, 데이터는 Cloudflare D1에 저장�
 ## 무엇을 하는 프로젝트인가
 
 - **디스코드 봇** — `/일정` `/임박` `/내마감` `/현황` `/달력` `/공고 추가|목록|삭제`
-  `/상태 변경` `/서류 목록|추가|완료|연결` `/나는`, 총 9개 커맨드로 일정을 조회·입력합니다.
+  `/상태 변경` `/서류 목록|추가|완료|연결` `/나는` `/자금 현황|설정`, 총 10개 커맨드로
+  일정·자금을 조회·입력합니다.
 - **달력 웹페이지** — 봇의 `/달력`이 링크로 안내하는 `https://grantboard.benclaude-toss.workers.dev`
   (또는 `/calendar`). 같은 Worker가 요청 시점에 D1을 읽어 렌더링합니다.
 - **자동 수집** — 매일 아침 K-Startup·기업마당 공고를 크론으로 긁어옵니다.
@@ -58,9 +59,35 @@ camelCase → snake_case로 바뀌었을 뿐입니다.
   시작한 팀이 항상 `needs-check`로 빠지는 걸 막기 위함입니다.
 - `src/lib/documents.ts` — `documentExpiry(doc)` → 유효기한과 만료 상태(`expired`/`expiring`/`valid`/`unknown`).
   기한은 `validUntil`이 우선이고, 없으면 `issuedAt + validityDays`로 계산합니다.
+- `src/lib/funding.ts` — `summarizeFunding(views)` → 성격별 자금 합계. 날짜·자격을 스스로
+  판정하지 않고 이미 판정이 끝난 `ProgramView`를 받습니다. 집계 대상을 고르는 건
+  `reachableViews()`이고, 기준은 "마감 전 + 명백한 부적격 아님"입니다 — `needs-check`는
+  **남깁니다**(사람이 판단할 몫이고, 빼면 합계가 실제보다 작아져 "노릴 게 없다"는 잘못된
+  결론으로 갑니다).
 - 날짜 계산은 전부 `src/lib/schedule.ts`의 KST 헬퍼를 재사용합니다. **타임존 처리를 다른 파일에
   새로 만들지 마세요.** D1은 SQLite라 날짜 함수가 UTC 기준이므로, `worker/db/`는 날짜를
   TEXT로만 저장·전달하고 판정은 전부 이 헬퍼에 맡깁니다.
+
+### 자금 축 (`programs.funding`)
+
+마감일 축과 별개로 "지금 노릴 수 있는 돈이 합쳐서 얼마냐"에 답하기 위한 필드입니다.
+`supportAmount`(자유 문장)는 사람이 읽는 원문으로 **그대로 남기고**, 기계가 더하는 값은
+`funding`에 따로 넣습니다 — `"총 7,000만원 / 2개 트랙 각 7팀"` 같은 문장을 숫자 하나로
+뭉개면 총 규모와 1팀 몫의 구분이 사라집니다.
+
+| 필드 | 설명 |
+|------|------|
+| `funding.type` | `상금` / `크레딧` / `사업화자금` / `지분투자` / `융자`. 성격이 다르면 금액 비교가 무의미합니다(상금 300만원 ≠ 융자 300만원) |
+| `funding.amountKrw` | **총 지원규모가 아니라 선정 시 1팀이 받는 금액**(원). 등급제 공모전은 최하위 입상 등급 기준 |
+| `funding.selfBurdenPct` | 자기부담금 비율(%). 바우처형은 0이 아닙니다 |
+
+**모르는 금액은 비워 둡니다.** 0으로 넣으면 합계가 조용히 과소평가되고, 추정으로 채우면
+조용히 거짓이 됩니다. 비워 두면 `/자금 현황`이 "금액 미기입 N건 — 합계에 빠져 있습니다"로
+따로 보고합니다. 시드 12건 중 6건이 이 상태입니다(1팀 몫이 공고 원문에 없는 건들).
+
+자동수집 소스(K-Startup·기업마당)는 이 값을 주지 않으므로 사람이 손으로 넣습니다. 그래서
+`src/lib/collect.ts`의 `UPDATABLE_FIELDS`에 **일부러 넣지 않았습니다** — 넣으면 다음날 크론이
+손으로 채운 금액을 지웁니다.
 
 ## 자동 수집 (K-Startup + 기업마당)
 
@@ -170,6 +197,17 @@ node scripts/register-commands.mjs --dry-run   # 전송하지 않고 등록될 �
 디스코드 개발자 포털의 **Interactions Endpoint URL**은 `https://grantboard.benclaude-toss.workers.dev/interactions`
 로 설정합니다. 이 URL에 GET/HEAD로 접근하면 404, POST 이외 메서드는 405를 돌려줍니다.
 
+### 자금 채널 (`/자금`)
+
+`/자금 현황`은 마감 전 + 자격에 안 걸리는 공고의 자금을 성격별로 합산해 보여줍니다.
+`/자금 설정 성격:… 금액만원:… 자기부담:…`으로 먼저 값을 입력하고, 이어지는 드롭다운에서
+대상 공고를 고릅니다(모달이 아니라 슬래시 옵션으로 받는 이유는 모달 5칸 제약 때문입니다).
+
+**자금 전용 채널을 따로 쓰더라도 봇 코드에 채널 라우팅을 추가할 필요가 없습니다.** 슬래시
+커맨드 응답은 호출한 채널에 뜨므로, 자금 채널에서 `/자금`을 치면 그 채널에 뜹니다.
+`DISCORD_CHANNEL_ID`는 크론 알림(마감 임박·마감 통지) 전용으로 그대로 두면 됩니다 —
+그쪽은 공고 마감 알림이라 기존 채널이 맞는 자리입니다.
+
 ### 서류함
 
 서류 실물(PDF 등)은 디스코드의 `#서류함` 포럼 채널에 파일로 보관합니다. 봇의 `/서류` 커맨드는
@@ -198,7 +236,7 @@ Discord 전송(재시도 포함)만 합니다.
 ## D1
 
 - 데이터베이스: `grantboard` (Cloudflare D1, APAC 리전).
-- 스키마: `migrations/0001_init.sql` ~ `0003_bot_state.sql`. 컬럼은 `src/content.config.ts`의
+- 스키마: `migrations/0001_init.sql` ~ `0004_program_funding.sql`. 컬럼은 `src/content.config.ts`의
   zod 스키마와 1:1 대응(camelCase → snake_case)하고, `eligibility`/`tags`/`aliasTitles` 같은
   중첩 구조는 JSON 컬럼에 담아 `worker/db/repo.ts`에서만 파싱/직렬화합니다.
 - 접근은 항상 `worker/db/repo.ts`를 통해서만 합니다.

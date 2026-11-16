@@ -1,0 +1,24 @@
+-- 공고에 자금 축을 추가한다 (2026-11-17).
+--
+-- 왜 필요했나: support_amount는 자유 문자열이다. 실제로 들어 있는 값이
+--   "총 7,000만원 / 2개 트랙 각 7팀(총 14팀). 아이디어기획트랙 대상 800만·최우수 400…"
+-- 이런 문장이라, 보드가 "지금 노릴 수 있는 돈이 합쳐서 얼마냐"에 대답할 수 없었다.
+-- 기존 보드는 마감일 축 하나로만 돌아갔다.
+--
+-- 왜 JSON 한 컬럼인가 (eligibility와 같은 방식):
+-- 금액 합산을 SQL로 하지 않기 때문이다. 합산 대상은 "마감이 지나지 않았고 자격에도 걸리지 않는
+-- 공고"인데, 그 판정은 KST 자정 기준 날짜 계산(src/lib/schedule.ts)과 자격 판정
+-- (src/lib/eligibility.ts)을 거쳐야 나온다. SQLite는 UTC 기준이라 날짜 판정을 여기서 하면
+-- KST 경계에서 하루씩 어긋난다 — 0001_init.sql 머리말의 날짜 규칙과 같은 이유다.
+-- 그래서 합산은 판정이 끝난 ProgramView를 받는 src/lib/funding.ts가 한다.
+--
+-- JSON 형태 (정본은 src/content.config.ts의 zod 스키마):
+--   { "type": "상금" | "사업화자금" | "지분투자" | "크레딧" | "융자",
+--     "amountKrw": 3000000,      -- 선정 시 1팀이 받는 금액(원). 총 지원규모가 아니다.
+--     "selfBurdenPct": 30 }      -- 자기부담금 비율(%). 바우처형은 0이 아니다.
+--
+-- CHECK 제약을 걸지 않은 이유: SQLite의 ALTER TABLE ADD COLUMN은 CHECK를 함께 추가할 수 없고,
+-- 테이블 재작성은 이 한 컬럼을 위해 치를 값이 아니다. 값 검증은 zod 스키마와
+-- /자금 설정 핸들러에서 한다 — eligibility 컬럼도 같은 방식으로 검증 없이 TEXT다.
+
+ALTER TABLE programs ADD COLUMN funding TEXT;   -- JSON object 또는 NULL

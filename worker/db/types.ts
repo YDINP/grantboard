@@ -35,6 +35,32 @@ export type ProgramEligibility = {
   note?: string;
 };
 
+/**
+ * 돈의 성격. 금액만으로는 비교가 안 되기 때문에 성격을 같이 들고 다닌다 —
+ * 상금 300만원과 융자 300만원은 같은 값이 아니다(지분 희석·증빙 의무·부채 여부가 다르다).
+ *
+ * ⚠️ src/content.config.ts의 `funding.type` z.enum과 값이 같아야 한다. content.config.ts는
+ * 'astro:content'를 런타임 import하므로 Worker 번들에서 그대로 쓸 수 없어 목록을 여기 복제해 둔다
+ * (worker/discord/commands.ts의 CATEGORY_CHOICES와 같은 사정이다).
+ * 배열 순서는 화면 표시 순서이기도 하다 — 받기 쉬운 쪽에서 어려운 쪽으로.
+ */
+export const FUNDING_TYPES = ['상금', '크레딧', '사업화자금', '지분투자', '융자'] as const;
+
+export type FundingType = (typeof FUNDING_TYPES)[number];
+
+/**
+ * 공고의 자금 정보. ProgramEligibility와 같은 이유로 interface가 아니라 type 별칭이다
+ * (src/lib/collect.ts의 ProgramRecord가 Record<string, unknown>을 받는데 interface에는
+ * 암묵적 인덱스 시그니처가 없다 — 위 ProgramEligibility 주석 참고).
+ */
+export type ProgramFunding = {
+  type: FundingType;
+  /** 총 지원규모가 아니라 선정 시 1팀이 받는 금액(원). 등급제는 최하위 입상 등급 기준. */
+  amountKrw?: number;
+  /** 자기부담금 비율(%). 바우처형은 0이 아니다. */
+  selfBurdenPct?: number;
+};
+
 export interface Program {
   id: string;
   title: string;
@@ -46,7 +72,9 @@ export interface Program {
   /** 'HH:MM'. 없으면 화면에 "시각 미확인"으로 표시한다. */
   applyEndTime?: string;
   announceDate?: string;
+  /** 사람이 읽는 원문 문장. 기계가 더하는 값은 funding 쪽이다. */
   supportAmount?: string;
+  funding?: ProgramFunding;
   tags: string[];
   source: ProgramSource;
   collectedAt?: string;

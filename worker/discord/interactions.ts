@@ -10,7 +10,13 @@ import { verifyDiscordRequest } from './verify.ts';
 import { pongResponse, errorMessageResponse, messageResponse } from './responses.ts';
 import { InteractionType, ComponentType, ButtonStyle } from './types.ts';
 import type { DiscordInteraction } from './types.ts';
-import { COMMAND_NAMES, PROGRAM_SUBCOMMANDS, STATUS_SUBCOMMANDS, DOCUMENT_SUBCOMMANDS } from './commands.ts';
+import {
+  COMMAND_NAMES,
+  PROGRAM_SUBCOMMANDS,
+  STATUS_SUBCOMMANDS,
+  DOCUMENT_SUBCOMMANDS,
+  FUNDING_SUBCOMMANDS,
+} from './commands.ts';
 import { decodeCustomId } from './customId.ts';
 
 import { handleUrgentCommand } from './handlers/urgent.ts';
@@ -27,6 +33,12 @@ import { handleMyDeadlinesCommand } from './handlers/myDeadlines.ts';
 import { handleMeCommand } from './handlers/me.ts';
 import { handleStatusBoardCommand } from './handlers/statusBoardCommand.ts';
 import { handleScheduleCommand } from './handlers/schedule.ts';
+import {
+  handleFundingViewCommand,
+  handleFundingSetCommand,
+  handleFundingProgramPage,
+  handleFundingProgramSelect,
+} from './handlers/funding.ts';
 import {
   handleProgramAddOpen,
   handleProgramAddSubmit,
@@ -111,6 +123,12 @@ function routeApplicationCommand(interaction: DiscordInteraction, request: Reque
       if (sub === STATUS_SUBCOMMANDS.CHANGE) return handleStatusChangeCommand(interaction, env, ctx);
       return errorMessageResponse('알 수 없는 /상태 서브커맨드입니다.');
     }
+    case COMMAND_NAMES.FUNDING: {
+      const sub = interaction.data?.options?.[0]?.name;
+      if (sub === FUNDING_SUBCOMMANDS.VIEW) return handleFundingViewCommand(interaction, env, ctx);
+      if (sub === FUNDING_SUBCOMMANDS.SET) return handleFundingSetCommand(interaction, env, ctx);
+      return errorMessageResponse('알 수 없는 /자금 서브커맨드입니다.');
+    }
     case COMMAND_NAMES.DOCUMENTS: {
       const sub = interaction.data?.options?.[0]?.name;
       if (sub === DOCUMENT_SUBCOMMANDS.LIST) return handleDocumentListCommand(interaction, env, ctx);
@@ -131,6 +149,10 @@ function routeMessageComponent(interaction: DiscordInteraction, env: Env, ctx: E
     if (decoded.action === 'delete-select-program') return handleProgramDeleteSelect(interaction, env, ctx);
     if (decoded.action === 'delete-confirm') return handleProgramDeleteConfirm(interaction, env, ctx);
     if (decoded.action === 'delete-cancel') return handleProgramDeleteCancel();
+  }
+  if (decoded.namespace === 'funding') {
+    if (decoded.action === 'select-program') return handleFundingProgramSelect(interaction, env, ctx);
+    if (decoded.action === 'select-program-page') return handleFundingProgramPage(interaction, env, ctx);
   }
   if (decoded.namespace === 'status') {
     if (decoded.action === 'select-program') return handleStatusProgramSelect(interaction);
