@@ -204,6 +204,16 @@ node scripts/register-commands.mjs --dry-run   # 전송하지 않고 등록될 �
 > `Invoke-RestMethod` 기본 UA가 여기 걸립니다. Worker 런타임의 `fetch`는 자체 UA를 붙이므로
 > `worker/discord/discordApi.ts` 경로에서는 이 문제가 없습니다.
 
+> ⚠️ **PowerShell 스크립트 안에 한글을 리터럴로 넣지 마세요.** Windows PowerShell 5.1은
+> **BOM 없는 `.ps1`을 시스템 ANSI 코드페이지(이 환경은 CP949)로 디코딩**합니다. 그래서
+> UTF-8로 저장된 스크립트의 한글은 API에 닿기 **전에** 이미 깨지고, 요청 본문을 UTF-8
+> 바이트로 변환해 보내도 소용이 없습니다. 실제로 이 때문에 `💰 창업자금` 카테고리가
+> `?뮥 李쎌뾽?먭툑`으로 만들어져 PATCH로 고쳐야 했습니다.
+> **한글 본문은 별도 UTF-8 `.json` 파일에 두고 `[System.IO.File]::ReadAllBytes()`로 읽어
+> 그대로 body에 실으세요.** 스크립트 본문은 ASCII만 유지합니다. 콘솔 출력이 깨지는 것도
+> 같은 코드페이지 문제이므로, 확인용 출력은 `WriteAllText(..., UTF8Encoding)`로 파일에
+> 남겨서 읽는 쪽이 확실합니다.
+
 ### 자금 채널 (`/자금`)
 
 `/자금 현황`은 마감 전 + 자격에 안 걸리는 공고의 자금을 성격별로 합산해 보여줍니다.
